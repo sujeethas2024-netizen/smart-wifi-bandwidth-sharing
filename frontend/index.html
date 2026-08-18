@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Smart Wi-Fi Bandwidth Sharing
+    </title>
+
+
+    <link
+        href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+    >
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+</head>
+
+
+<body>
+
+
+<nav class="navbar navbar-dark bg-dark">
+
+    <div class="container">
+
+        <span class="navbar-brand">
+            📡 Smart Wi-Fi Bandwidth Sharing
+        </span>
+
+    </div>
+
+</nav>
+
+
+<div class="container mt-4">
+
+
+    <div class="hero">
+
+        <h1>
+            Smart Wi-Fi Bandwidth Allocation
+        </h1>
+
+        <p>
+            Game Theory based fair bandwidth sharing
+        </p>
+
+    </div>
+
+
+    <!-- Network Settings -->
+
+    <div class="card p-4 mt-4">
+
+        <h3>
+            Network Configuration
+        </h3>
+
+
+        <label>
+            Total Bandwidth (Mbps)
+        </label>
+
+        <input
+            type="number"
+            id="totalBandwidth"
+            class="form-control"
+            value="40"
+            min="1"
+        >
+
+
+    </div>
+
+
+    <!-- Users -->
+
+    <div class="card p-4 mt-4">
+
+        <div class="d-flex justify-content-between">
+
+            <h3>
+                Active Users
+            </h3>
+
+            <button
+                class="btn btn-primary"
+                onclick="addUser()"
+            >
+                + Add User
+            </button>
+
+        </div>
+
+
+        <div id="users">
+
+        </div>
+
+
+        <button
+            class="btn btn-success mt-3"
+            onclick="calculateAllocation()"
+        >
+
+            Calculate Bandwidth
+
+        </button>
+
+    </div>
+
+
+    <!-- Results -->
+
+    <div
+        id="results"
+        class="card p-4 mt-4"
+    >
+
+        <h3>
+            Allocation Results
+        </h3>
+
+        <div id="resultContent">
+
+            No calculation performed yet.
+
+        </div>
+
+    </div>
+
+
+    <!-- Chart -->
+
+    <div class="card p-4 mt-4 mb-5">
+
+        <h3>
+            Bandwidth Allocation Graph
+        </h3>
+
+        <canvas
+            id="allocationChart"
+        ></canvas>
+
+    </div>
+
+
+</div>
+
+
+<script
+    src="https://cdn.jsdelivr.net/npm/chart.js"
+></script>
+
+<script src="script.js"></script>
+
+
+</body>
+
+</html>
