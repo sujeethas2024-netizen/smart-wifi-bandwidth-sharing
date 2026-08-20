@@ -1,76 +1,20 @@
+<<<<<<< HEAD
 from flask import Flask, send_from_directory
 from backend.routes.bandwidth_routes import bandwidth_bp
 import os
+=======
+from flask import Flask
+from routes.data_routes import data_bp
+>>>>>>> 619d6ac5eb60381adee12dc026bac9aa261adeb5
 
+app = Flask(__name__)
 
-# Path to frontend folder
-BASE_DIR = os.path.dirname(
-    os.path.dirname(
-        os.path.abspath(__file__)
-    )
-)
+# Register the dataset API blueprint
+app.register_blueprint(data_bp)
 
-FRONTEND_DIR = os.path.join(
-    BASE_DIR,
-    "frontend"
-)
-
-
-app = Flask(
-    __name__,
-    static_folder=FRONTEND_DIR
-)
-
-
-# Register API routes
-app.register_blueprint(
-    bandwidth_bp,
-    url_prefix="/api"
-)
-
-
-# Home page
-@app.route("/")
+@app.route('/')
 def home():
+    return "Smart Wi-Fi Bandwidth Sharing Backend Running!"
 
-    return send_from_directory(
-        FRONTEND_DIR,
-        "index.html"
-    )
-
-
-# Frontend CSS / JS / files
-@app.route("/<path:filename>")
-def frontend_files(filename):
-
-    return send_from_directory(
-        FRONTEND_DIR,
-        filename
-    )
-
-
-if __name__ == "__main__":
-
-    print(
-        "======================================"
-    )
-
-    print(
-        " SMART WI-FI BANDWIDTH SHARING"
-    )
-
-    print(
-        "======================================"
-    )
-
-    print(
-        "Server running at:"
-    )
-
-    print(
-        "http://127.0.0.1:5000"
-    )
-
-    app.run(
-        debug=True
-    )
+if __name__ == '__main__':
+    app.run(debug=True, port=5000)
