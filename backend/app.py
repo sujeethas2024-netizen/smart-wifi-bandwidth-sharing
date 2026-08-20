@@ -1,5 +1,5 @@
 from flask import Flask, send_from_directory
-from routes.bandwidth_routes import bandwidth_bp
+from backend.routes.bandwidth_routes import bandwidth_bp
 import os
 
 

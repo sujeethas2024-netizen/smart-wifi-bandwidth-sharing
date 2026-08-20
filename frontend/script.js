@@ -115,53 +115,35 @@ async function calculateAllocation() {
 
     const totalBandwidth =
         parseFloat(
-            document.getElementById(
-                "totalBandwidth"
-            ).value
+            document.getElementById("totalBandwidth").value
         );
-
 
     const rows =
-        document.querySelectorAll(
-            ".user-row"
-        );
-
+        document.querySelectorAll(".user-row");
 
     const users = [];
 
+    rows.forEach((row, index) => {
 
-    rows.forEach(
-        (row, index) => {
+        const activity =
+            row.querySelector(".activity").value;
 
-            const activity =
-                row.querySelector(
-                    ".activity"
-                ).value;
+        const bandwidth =
+            parseFloat(
+                row.querySelector(".bandwidth").value
+            );
 
+        users.push({
 
-            const bandwidth =
-                parseFloat(
-                    row.querySelector(
-                        ".bandwidth"
-                    ).value
-                );
+            user_id: index + 1,
 
+            activity: activity,
 
-            users.push({
+            requested_bandwidth: bandwidth
 
-                user_id:
-                    index + 1,
+        });
 
-                activity:
-                    activity,
-
-                requested_bandwidth:
-                    bandwidth
-
-            });
-
-        }
-    );
+    });
 
 
     if (users.length === 0) {
@@ -184,10 +166,8 @@ async function calculateAllocation() {
                     method: "POST",
 
                     headers: {
-
                         "Content-Type":
                             "application/json"
-
                     },
 
                     body:
@@ -205,40 +185,86 @@ async function calculateAllocation() {
             );
 
 
+        /*
+         * Check HTTP response first
+         */
+
+        if (!response.ok) {
+
+            throw new Error(
+                "Server returned HTTP " +
+                response.status
+            );
+
+        }
+
+
+        /*
+         * Convert server response to JSON
+         */
+
         const result =
             await response.json();
 
 
-        if (
-            result.status !==
-            "success"
-        ) {
+        /*
+         * Show the actual response
+         * in browser console for debugging
+         */
 
-            alert(
-                result.message
-            );
+        console.log(
+            "Allocation response:",
+            result
+        );
 
-            return;
-        }
 
+        /*
+         * Backend currently returns:
+         *
+         * {
+         *     number_of_users: 372,
+         *     result: {
+         *         fairness_status: "...",
+         *         ...
+         *     }
+         * }
+         *
+         * Therefore use result.result.
+         */
+
+        const allocationData =
+            result.result
+                ? result.result
+                : result.data
+                    ? result.data
+                    : result;
+
+
+        /*
+         * Display allocation results
+         */
 
         displayResults(
-            result.data
+            allocationData
         );
 
 
     }
     catch (error) {
 
-        console.error(error);
+        console.error(
+            "Allocation error:",
+            error
+        );
 
         alert(
-            "Unable to connect to server."
+            "Unable to connect to server.\n\n" +
+            error.message
         );
 
     }
-}
 
+}
 
 // ----------------------------------
 // Display Results
