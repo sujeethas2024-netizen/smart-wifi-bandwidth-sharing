@@ -25,3 +25,6 @@ Thumbs.db
 # Database files
 *.db
 *.csv
+
+# Runtime artifacts
+server.log

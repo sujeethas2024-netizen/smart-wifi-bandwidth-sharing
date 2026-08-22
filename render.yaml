@@ -1,0 +1,21 @@
+# Render.com Blueprint — one-click deployment
+# Docs: https://render.com/docs/blueprint-spec
+#
+# This deploys the ENTIRE app (React UI + Flask API) as one
+# web service. The built frontend (frontend/dist) is served by
+# Flask itself, so no separate static hosting is needed.
+
+services:
+  - type: web
+    name: smart-wifi-bandwidth-sharing
+    runtime: python
+    plan: free
+    region: singapore          # closest free region to India
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m backend.app
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.1
+      - key: PORT
+        value: 10000

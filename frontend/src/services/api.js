@@ -53,7 +53,8 @@ export const authApi = {
     apiFetch(`/api/auth/me?username=${encodeURIComponent(username)}`),
 };
 
-/* ---------------- Live network stats ---------------- */
+/* ---------------- Live network data ---------------- */
 export const networkApi = {
   stats: () => apiFetch("/api/network/stats"),
+  users: () => apiFetch("/api/network/users"),
 };

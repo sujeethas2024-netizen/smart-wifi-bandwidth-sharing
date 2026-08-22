@@ -14,17 +14,18 @@ import {
   generateStats,
   generateHistory,
   generateCategoryData,
-  tickUsers,
   PERFORMANCE,
 } from "../data/mockData";
+import { networkApi } from "../services/api";
 import "../styles/pages.css";
 
 export default function Dashboard() {
-  const [users, setUsers] = useState(() => generateUsers());
+  const [users, setUsers] = useState([]);
   const [history, setHistory] = useState(() => generateHistory());
   const [perf, setPerf] = useState(() => PERFORMANCE());
   const [allocating, setAllocating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);
 
   // Skeleton loader on first mount
   useEffect(() => {
@@ -32,12 +33,40 @@ export default function Dashboard() {
     return () => clearTimeout(t);
   }, []);
 
-  // Live traffic tick every 3s
+  // LIVE: pull real registered users + live usage from the backend
+  // every 3s. All devices see identical server-side values.
   useEffect(() => {
-    const id = setInterval(() => {
-      setUsers((prev) => tickUsers(prev));
-      setPerf(PERFORMANCE());
-    }, 3000);
+    let stop = false;
+    const pull = async () => {
+      try {
+        const res = await networkApi.users();
+        if (!stop && res?.ok && Array.isArray(res.users) && res.users.length > 0) {
+          setUsers(res.users);
+          setLive(true);
+        }
+      } catch {
+        /* keep last known data */
+      }
+    };
+    pull();
+    const id = setInterval(pull, 3000);
+    return () => {
+      stop = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  // Fallback: if backend has no accounts yet, show simulated users
+  // so the dashboard is never empty.
+  useEffect(() => {
+    if (!loading && !live && users.length === 0) {
+      setUsers(generateUsers());
+    }
+  }, [loading, live, users.length]);
+
+  // Performance metrics refresh every 5s
+  useEffect(() => {
+    const id = setInterval(() => setPerf(PERFORMANCE()), 5000);
     return () => clearInterval(id);
   }, []);
 
