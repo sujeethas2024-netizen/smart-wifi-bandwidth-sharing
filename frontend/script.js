@@ -309,7 +309,7 @@ function displayResults(data) {
                     </p>
 
                     <div class="metric">
-                        ${data.fairness_index}
+                        ${data.jain_fairness_index}
                     </div>
 
                 </div>

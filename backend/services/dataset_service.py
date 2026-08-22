@@ -1,9 +1,9 @@
 import os
 import pandas as pd
 
-# Find Cleaned_Dataset.csv inside backend/
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATASET_PATH = os.path.join(BASE_DIR, 'Cleaned_Dataset.csv')
+# Find Cleaned_Dataset.csv inside data/
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+DATASET_PATH = os.path.join(BASE_DIR, 'data', 'Cleaned_Dataset.csv')
 
 def get_cleaned_data():
     """Loads and returns the cleaned dataframe."""
