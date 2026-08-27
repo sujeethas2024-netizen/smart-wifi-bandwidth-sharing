@@ -96,7 +96,7 @@ def print_banner() -> None:
 # route below (Flask's built-in static rule would otherwise shadow it).
 app = Flask(__name__, static_folder=None)
 
-# Allow any origin (LAN phones/laptops) to call the API
+# Allow any origin (LAN phones/laptops + public hosting)
 CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 # Register API blueprints
@@ -123,7 +123,16 @@ def spa(path):
         if candidate.startswith(os.path.normpath(FRONTEND_DIR)) and os.path.isfile(candidate):
             return send_from_directory(FRONTEND_DIR, path)
 
-    return send_from_directory(FRONTEND_DIR, "index.html")
+    html_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.isfile(html_path):
+        content = open(html_path, "r", encoding="utf-8").read()
+        api_base = os.environ.get("PUBLIC_API_BASE", "")
+        if api_base:
+            inject = f"<script>window.__API_BASE__={repr(api_base)}</script>"
+            content = content.replace("</head>", f"{inject}</head>")
+        return content
+
+    return jsonify({"status": "error", "message": "Frontend not built"}), 500
 
 
 if __name__ == "__main__":

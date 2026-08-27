@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { FiGrid, FiList, FiDatabase, FiRefreshCw } from "react-icons/fi";
 import UserTable from "../components/UserTable";
 import DeviceCards from "../components/DeviceCards";
-import { generateUsers, generateStats, tickUsers } from "../data/mockData";
+import { useLiveUsers } from "../hooks/useLiveUsers";
 import { fetchAccounts } from "../services/authService";
 import "../styles/pages.css";
 
@@ -98,15 +98,23 @@ function AccountsPanel() {
 }
 
 export default function Users() {
-  const [users, setUsers] = useState(() => generateUsers());
+  const { users } = useLiveUsers();
   const [view, setView] = useState("table");
 
-  useEffect(() => {
-    const id = setInterval(() => setUsers((prev) => tickUsers(prev)), 3000);
-    return () => clearInterval(id);
-  }, []);
-
-  const stats = useMemo(() => generateStats(users), [users]);
+  const stats = useMemo(() => {
+    const online = users.filter((u) => u.status === "online");
+    const activeDevices = new Set(online.map((u) => u.device)).size;
+    const bandwidth = online.reduce((s, u) => s + u.usage, 0);
+    const health = Math.max(62, Math.min(99, 100 - Math.round(bandwidth / 6) + Math.floor(Math.random() * 5 - 2)));
+    return {
+      connectedUsers: online.length,
+      totalUsers: users.length,
+      activeDevices,
+      bandwidth,
+      health,
+      healthLabel: health >= 90 ? "Excellent" : health >= 75 ? "Good" : health >= 65 ? "Fair" : "Poor",
+    };
+  }, [users]);
 
   return (
     <motion.div

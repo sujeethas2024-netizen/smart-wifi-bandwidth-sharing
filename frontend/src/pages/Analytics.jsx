@@ -1,32 +1,37 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { BandwidthLine, ConsumptionBar, CategoryDoughnut, AllocationPie, AppCategoryBar } from "../components/Charts";
-import {
-  generateUsers,
-  generateHistory,
-  generateCategoryData,
-  tickUsers,
-} from "../data/mockData";
+import { useLiveUsers } from "../hooks/useLiveUsers";
+import { useNetworkStats } from "../hooks/useNetworkStats";
 import "../styles/pages.css";
 
 export default function Analytics() {
-  const [users, setUsers] = useState(() => generateUsers());
-  const [history, setHistory] = useState(() => generateHistory(30));
-  const [categoryData] = useState(() => generateCategoryData());
+  const { users } = useLiveUsers();
+  const { history } = useNetworkStats();
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setUsers((prev) => tickUsers(prev));
-      setHistory((h) => ({
-        labels: [...h.labels.slice(1), "now"],
-        values: [...h.values.slice(1), Math.max(35, Math.min(98, h.values[h.values.length - 1] + Math.round(Math.random() * 14 - 7)))],
-      }));
-    }, 3000);
-    return () => clearInterval(id);
-  }, []);
+  const categoryData = useMemo(() => {
+    const counts = {};
+    users.forEach((u) => {
+      if (u.status !== "offline") {
+        counts[u.device] = (counts[u.device] || 0) + 1;
+      }
+    });
+    const labels = Object.keys(counts);
+    const palette = ["#2563eb", "#7c3aed", "#14b8a6", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#06b6d4"];
+    return {
+      labels,
+      datasets: [
+        {
+          data: Object.values(counts),
+          backgroundColor: labels.map((_, i) => palette[i % palette.length]),
+          borderRadius: 8,
+        },
+      ],
+    };
+  }, [users]);
 
   const totalAllocated = useMemo(
-    () => users.reduce((s, u) => s + u.allocated, 0),
+    () => users.reduce((s, u) => s + (u.allocated || 0), 0),
     [users]
   );
 

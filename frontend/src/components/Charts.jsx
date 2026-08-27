@@ -93,9 +93,9 @@ export function BandwidthLine({ history }) {
 /* ---------- User Consumption — Bar chart ---------- */
 export function ConsumptionBar({ users }) {
   const options = useChartOptions();
-  const top = [...users].filter((u) => u.status !== "offline").slice(0, 8);
-  const data = useMemo(
-    () => ({
+  const data = useMemo(() => {
+    const top = [...(users || [])].filter((u) => u.status !== "offline").slice(0, 8);
+    return {
       labels: top.map((u) => u.username),
       datasets: [
         {
@@ -108,9 +108,18 @@ export function ConsumptionBar({ users }) {
           maxBarThickness: 34,
         },
       ],
-    }),
-    [top]
-  );
+    };
+  }, [users]);
+
+  if (!data.labels.length) {
+    return (
+      <div className="chart-empty">
+        <span className="chart-empty-icon">📊</span>
+        <p>No active users yet</p>
+        <small>Consumption data appears when users come online.</small>
+      </div>
+    );
+  }
   return <Bar data={data} options={options} />;
 }
 
@@ -123,14 +132,18 @@ export function AppCategoryBar({ data }) {
 /* ---------- Device Category — Doughnut ---------- */
 export function CategoryDoughnut({ users }) {
   const options = useChartOptions();
-  const counts = {};
-  users.forEach((u) => {
-    if (u.status !== "offline") counts[u.device] = (counts[u.device] || 0) + 1;
-  });
-  const labels = Object.keys(counts);
   const palette = ["#2563eb", "#7c3aed", "#14b8a6", "#f59e0b", "#ef4444", "#3b82f6", "#8b5cf6", "#06b6d4"];
-  const data = useMemo(
-    () => ({
+
+  // Build counts INSIDE useMemo so the chart always reacts to fresh `users`
+  const data = useMemo(() => {
+    const counts = {};
+    (users || []).forEach((u) => {
+      if (u.status !== "offline") {
+        counts[u.device] = (counts[u.device] || 0) + 1;
+      }
+    });
+    const labels = Object.keys(counts);
+    return {
       labels,
       datasets: [
         {
@@ -141,9 +154,20 @@ export function CategoryDoughnut({ users }) {
           cutout: "62%",
         },
       ],
-    }),
-    [labels.join(",")]
-  );
+    };
+  }, [users]);
+
+  // Show a friendly placeholder instead of a blank card
+  if (!data.labels.length) {
+    return (
+      <div className="chart-empty">
+        <span className="chart-empty-icon">📡</span>
+        <p>Loading device data…</p>
+        <small>Categories will appear once devices are detected.</small>
+      </div>
+    );
+  }
+
   return <Doughnut data={data} options={{ ...options, scales: {} }} />;
 }
 

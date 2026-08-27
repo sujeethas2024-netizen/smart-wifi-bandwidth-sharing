@@ -4,7 +4,8 @@ import { Link } from "react-router-dom";
 import { FiInfo, FiZap, FiWifi, FiActivity, FiShield } from "react-icons/fi";
 import CountUp from "../components/CountUp";
 import { BandwidthLine } from "../components/Charts";
-import { generateHistory, generateStats, generateUsers, tickUsers, PERFORMANCE } from "../data/mockData";
+import { useLiveUsers } from "../hooks/useLiveUsers";
+import { useNetworkStats } from "../hooks/useNetworkStats";
 import { getCurrentUser } from "../services/authService";
 import "../styles/pages.css";
 
@@ -39,36 +40,48 @@ function QuotaRing({ used, total }) {
 
 export default function UserDashboard() {
   const user = getCurrentUser();
-  const [users, setUsers] = useState(() => generateUsers());
-  const [history, setHistory] = useState(() => generateHistory(20));
-  const [perf] = useState(() => PERFORMANCE());
+  const { users } = useLiveUsers();
+  const { stats, history } = useNetworkStats();
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const t = setTimeout(() => setLoading(false), 700);
+    return () => clearTimeout(t);
+  }, []);
 
   // My personal slice of the network (deterministic per username)
   const myDevices = useMemo(() => {
     const seed = (user?.username || "user").length;
-    return users.slice(seed % 5, (seed % 5) + 3).map((u) => ({
-      ...u,
-      allocated: [25, 15, 10][(seed + u.id) % 3],
-    }));
+    return users.slice(seed % 5, (seed % 5) + 3);
   }, [users, user]);
 
-  const myTotal = myDevices.reduce((s, d) => s + d.allocated, 0);
-  const myUsed = myDevices.reduce((s, d) => s + d.usage, 0);
-  const netStats = useMemo(() => generateStats(users), [users]);
+  const myTotal = useMemo(() => myDevices.reduce((s, d) => s + (d.allocated || 0), 0), [myDevices]);
+  const myUsed = useMemo(() => myDevices.reduce((s, d) => s + (d.usage || 0), 0), [myDevices]);
 
-  useEffect(() => {
-    const id = setInterval(() => {
-      setUsers((prev) => tickUsers(prev));
-      setHistory((h) => ({
-        labels: [...h.labels.slice(1), "now"],
-        values: [...h.values.slice(1), Math.max(4, Math.min(myTotal, myUsed + Math.round(Math.random() * 8 - 4)))],
-      }));
-    }, 3000);
-    return () => clearInterval(id);
-  }, [myTotal, myUsed]);
+  const netStats = useMemo(() => ({
+    connectedUsers: users.filter((u) => u.status === "online").length,
+    totalUsers: users.length,
+    bandwidth: users.filter((u) => u.status === "online").reduce((s, u) => s + (u.usage || 0), 0),
+    health: stats.health,
+    healthLabel: stats.healthLabel,
+  }), [users, stats.health, stats.healthLabel]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="skeleton hero-skel" />
+        <div className="stat-grid">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="skeleton stat-skel" />
+          ))}
+        </div>
+        <div className="skeleton chart-skel" />
+      </div>
+    );
+  }
 
   return (
     <motion.div className="page" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
@@ -184,9 +197,9 @@ export default function UserDashboard() {
         <h3 className="section-title"><span className="dot" /> Network Status (read-only)</h3>
         <div className="netstatus-row">
           <div><strong>{netStats.connectedUsers}</strong><span>Users online</span></div>
-          <div><strong>{netStats.bandwidth} Mbps</strong><span>Total in use</span></div>
-          <div><strong>{perf.latency} ms</strong><span>Latency</span></div>
-          <div><strong>{perf.packetLoss}%</strong><span>Packet loss</span></div>
+          <div><strong>{netStats.bandwidth.toFixed(1)} Mbps</strong><span>Total in use</span></div>
+          <div><strong>{stats.latency} ms</strong><span>Latency</span></div>
+          <div><strong>{stats.packetLoss}%</strong><span>Packet loss</span></div>
           <div><strong style={{ color: "#22c55e" }}>{netStats.healthLabel}</strong><span>Health</span></div>
         </div>
       </div>

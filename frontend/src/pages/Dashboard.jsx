@@ -9,85 +9,49 @@ import PerformanceCards from "../components/PerformanceCards";
 import AIRecommendations from "../components/AIRecommendations";
 import AllocationAnimation from "../components/AllocationAnimation";
 import { BandwidthLine, ConsumptionBar, CategoryDoughnut } from "../components/Charts";
-import {
-  generateUsers,
-  generateStats,
-  generateHistory,
-  generateCategoryData,
-  PERFORMANCE,
-} from "../data/mockData";
+import { useLiveUsers } from "../hooks/useLiveUsers";
+import { useNetworkStats } from "../hooks/useNetworkStats";
 import { networkApi } from "../services/api";
 import "../styles/pages.css";
 
 export default function Dashboard() {
-  const [users, setUsers] = useState([]);
-  const [history, setHistory] = useState(() => generateHistory());
-  const [perf, setPerf] = useState(() => PERFORMANCE());
+  const { users } = useLiveUsers();
+  const { stats, history, live } = useNetworkStats();
   const [allocating, setAllocating] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [live, setLive] = useState(false);
 
   // Skeleton loader on first mount
   useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 900);
+    const t = setTimeout(() => setLoading(false), 700);
     return () => clearTimeout(t);
   }, []);
 
-  // LIVE: pull real registered users + live usage from the backend
-  // every 3s. All devices see identical server-side values.
-  useEffect(() => {
-    let stop = false;
-    const pull = async () => {
-      try {
-        const res = await networkApi.users();
-        if (!stop && res?.ok && Array.isArray(res.users) && res.users.length > 0) {
-          setUsers(res.users);
-          setLive(true);
-        }
-      } catch {
-        /* keep last known data */
-      }
-    };
-    pull();
-    const id = setInterval(pull, 3000);
-    return () => {
-      stop = true;
-      clearInterval(id);
-    };
-  }, []);
+  const onlineUsers = useMemo(
+    () => users.filter((u) => u.status === "online" || u.status === "idle"),
+    [users]
+  );
 
-  // Fallback: if backend has no accounts yet, show simulated users
-  // so the dashboard is never empty.
-  useEffect(() => {
-    if (!loading && !live && users.length === 0) {
-      setUsers(generateUsers());
-    }
-  }, [loading, live, users.length]);
+  const statsComputed = useMemo(
+    () => ({
+      connectedUsers: onlineUsers.length,
+      totalUsers: users.length,
+      activeDevices: new Set(onlineUsers.map((u) => u.device)).size,
+      bandwidth: onlineUsers.reduce((s, u) => s + (u.usage || 0), 0),
+      health: stats.health,
+      healthLabel: stats.healthLabel,
+    }),
+    [onlineUsers, users, stats.health, stats.healthLabel]
+  );
 
-  // Performance metrics refresh every 5s
-  useEffect(() => {
-    const id = setInterval(() => setPerf(PERFORMANCE()), 5000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Push new point into bandwidth history every 5s
-  useEffect(() => {
-    const id = setInterval(() => {
-      setUsers((current) => {
-        setHistory((h) => {
-          const stats = generateStats(current);
-          return {
-            labels: [...h.labels.slice(1), "now"],
-            values: [...h.values.slice(1), stats.bandwidth],
-          };
-        });
-        return current;
-      });
-    }, 5000);
-    return () => clearInterval(id);
-  }, []);
-
-  const stats = useMemo(() => generateStats(users), [users]);
+  const perf = useMemo(
+    () => ({
+      latency: stats.latency,
+      packetLoss: stats.packetLoss,
+      throughput: stats.throughput,
+      jitter: stats.jitter,
+    }),
+    [stats.latency, stats.packetLoss, stats.throughput, stats.jitter]
+  );
 
   const handleAllocate = () => setAllocating(true);
 
@@ -114,7 +78,7 @@ export default function Dashboard() {
     >
       <Hero onStart={handleAllocate} />
 
-      <StatCards stats={stats} />
+      <StatCards stats={statsComputed} />
 
       {/* Charts row */}
       <div className="grid-2-1">
@@ -129,7 +93,14 @@ export default function Dashboard() {
         </div>
 
         <div className="chart-card glass">
-          <h3 className="section-title"><span className="dot" /> Device Category</h3>
+          <div className="chart-head">
+            <h3 className="section-title"><span className="dot" /> Device Category</h3>
+            {live && (
+              <span className="live-chip">
+                <span className="pulse-dot" style={{ background: "#22c55e" }} /> LIVE
+              </span>
+            )}
+          </div>
           <div className="chart-body">
             <CategoryDoughnut users={users} />
           </div>
@@ -141,8 +112,8 @@ export default function Dashboard() {
         <UserTable users={users} />
 
         <div className="side-col">
-          <HealthGauge health={stats.health} label={stats.healthLabel} />
-          <AIRecommendations />
+          <HealthGauge health={statsComputed.health} label={statsComputed.healthLabel} />
+          <AIRecommendations users={users} />
         </div>
       </div>
 
@@ -167,9 +138,9 @@ export default function Dashboard() {
             <FiRefreshCw /> Allocate Bandwidth
           </button>
           <div className="alloc-meta">
-            <div><strong>{stats.connectedUsers}</strong><span>Online users</span></div>
-            <div><strong>{stats.bandwidth}</strong><span>Mbps in use</span></div>
-            <div><strong>0.{stats.health - 10 > 0 ? stats.health : 90}</strong><span>Fairness index</span></div>
+            <div><strong>{statsComputed.connectedUsers}</strong><span>Online users</span></div>
+            <div><strong>{statsComputed.bandwidth.toFixed(1)}</strong><span>Mbps in use</span></div>
+            <div><strong>0.{statsComputed.health > 10 ? statsComputed.health : 90}</strong><span>Fairness index</span></div>
           </div>
         </div>
       </div>

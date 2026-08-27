@@ -1,13 +1,19 @@
 /* ============================================================
    API helper — talks to the Flask backend.
-   Uses SAME-ORIGIN relative paths ("/api/..."). The Vite dev
-   server proxies them to Flask on localhost:5000, so the app
-   works on localhost AND from any phone/laptop on the same WiFi
-   via http://<PC-IP>:5173 — no direct access to port 5000 or
-   extra firewall rules required.
+
+   API base URL resolution order:
+   1. Vite env var VITE_API_BASE (for public / split deployments)
+   2. Runtime global __API_BASE__ (injected by backend in production)
+   3. Empty string (same-origin / dev proxy)
    ============================================================ */
 
 export function apiBase() {
+  if (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE;
+  }
+  if (typeof globalThis !== "undefined" && globalThis.__API_BASE__) {
+    return globalThis.__API_BASE__;
+  }
   return "";
 }
 

@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import NetworkTopology from "../components/NetworkTopology";
 import CoverageMap from "../components/CoverageMap";
-import { generateUsers, tickUsers } from "../data/mockData";
+import { useLiveUsers } from "../hooks/useLiveUsers";
 import "../styles/pages.css";
 
 function SignalRow({ user }) {
@@ -34,13 +34,37 @@ function SignalRow({ user }) {
   );
 }
 
-export default function Network() {
-  const [users, setUsers] = useState(() => generateUsers());
+const ROOM_ICONS = {
+  "Living Room": "🛋️",
+  "Bedroom": "🛏️",
+  "Kitchen": "🍳",
+  "Hall": "🚪",
+  "Study Room": "📚",
+};
 
-  useEffect(() => {
-    const id = setInterval(() => setUsers((prev) => tickUsers(prev)), 3000);
-    return () => clearInterval(id);
-  }, []);
+export default function Network() {
+  const { users } = useLiveUsers();
+
+  const rooms = useMemo(() => {
+    const map = {};
+    users.forEach((u) => {
+      const room = u.room || "Other";
+      if (!map[room]) {
+        map[room] = { name: room, icon: ROOM_ICONS[room] || "📡", strength: 0, signals: [], devices: 0 };
+      }
+      map[room].devices += 1;
+      if (u.signal) {
+        const val = u.signal === "excellent" ? 95 : u.signal === "good" ? 80 : u.signal === "fair" ? 60 : 40;
+        map[room].signals.push(val);
+      }
+    });
+    return Object.values(map).map((r) => ({
+      name: r.name,
+      icon: r.icon,
+      strength: r.signals.length ? Math.round(r.signals.reduce((a, b) => a + b, 0) / r.signals.length) : 50,
+      devices: r.devices,
+    }));
+  }, [users]);
 
   return (
     <motion.div
@@ -58,7 +82,7 @@ export default function Network() {
 
       <NetworkTopology users={users} />
 
-      <CoverageMap />
+      <CoverageMap rooms={rooms} />
 
       <div className="chart-card glass">
         <h3 className="section-title"><span className="dot" /> Live Signal Strength</h3>

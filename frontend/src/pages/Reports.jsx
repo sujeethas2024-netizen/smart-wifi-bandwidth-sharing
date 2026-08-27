@@ -2,7 +2,8 @@ import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { jsPDF } from "jspdf";
 import { FiDownload, FiFileText, FiCalendar, FiClock } from "react-icons/fi";
-import { generateUsers, generateStats, PERFORMANCE } from "../data/mockData";
+import { useLiveUsers } from "../hooks/useLiveUsers";
+import { useNetworkStats } from "../hooks/useNetworkStats";
 import "../styles/pages.css";
 
 const REPORT_TYPES = [
@@ -31,9 +32,34 @@ const REPORT_TYPES = [
 
 export default function Reports() {
   const [generating, setGenerating] = useState(null);
-  const users = useMemo(() => generateUsers(), []);
-  const stats = useMemo(() => generateStats(users), [users]);
-  const perf = useMemo(() => PERFORMANCE(), []);
+  const { users } = useLiveUsers();
+  const { stats } = useNetworkStats();
+
+  const onlineUsers = useMemo(
+    () => users.filter((u) => u.status === "online" || u.status === "idle"),
+    [users]
+  );
+
+  const reportStats = useMemo(() => ({
+    connectedUsers: onlineUsers.length,
+    activeDevices: new Set(onlineUsers.map((u) => u.device)).size,
+    bandwidth: onlineUsers.reduce((s, u) => s + (u.usage || 0), 0),
+    health: stats.health,
+    healthLabel: stats.healthLabel,
+    latency: stats.latency,
+    packetLoss: stats.packetLoss,
+    throughput: stats.throughput,
+    jitter: stats.jitter,
+  }), [onlineUsers, users, stats]);
+
+  const fairnessIndex = useMemo(() => {
+    const allocs = users.map((u) => u.allocated || 0).filter((v) => v > 0);
+    if (allocs.length === 0) return 0.9;
+    const sum = allocs.reduce((a, b) => a + b, 0);
+    const sumSq = allocs.reduce((a, b) => a + b * b, 0);
+    if (sumSq === 0) return 0.9;
+    return (sum * sum) / (allocs.length * sumSq);
+  }, [users]);
 
   const downloadReport = (type) => {
     setGenerating(type.key);
@@ -64,14 +90,14 @@ export default function Reports() {
       doc.setFont(undefined, "normal");
       doc.setFontSize(10);
       const kpis = [
-        [`Connected Users`, `${stats.connectedUsers}`],
-        [`Active Devices`, `${stats.activeDevices}`],
-        [`Current Bandwidth`, `${stats.bandwidth} Mbps`],
-        [`Network Health`, `${stats.health}% (${stats.healthLabel})`],
-        [`Latency`, `${perf.latency} ms`],
-        [`Packet Loss`, `${perf.packetLoss}%`],
-        [`Throughput`, `${perf.throughput} Mbps`],
-        [`Fairness Index`, `0.9${stats.health % 10}`],
+        [`Connected Users`, `${reportStats.connectedUsers}`],
+        [`Active Devices`, `${reportStats.activeDevices}`],
+        [`Current Bandwidth`, `${reportStats.bandwidth.toFixed(1)} Mbps`],
+        [`Network Health`, `${reportStats.health}% (${reportStats.healthLabel})`],
+        [`Latency`, `${reportStats.latency} ms`],
+        [`Packet Loss`, `${reportStats.packetLoss}%`],
+        [`Throughput`, `${reportStats.throughput} Mbps`],
+        [`Fairness Index`, `${fairnessIndex.toFixed(2)}`],
       ];
       kpis.forEach(([k, v], i) => {
         const y = 70 + i * 7;
@@ -181,12 +207,12 @@ export default function Reports() {
       <div className="chart-card glass">
         <h3 className="section-title"><span className="dot" /> Report Preview Summary</h3>
         <div className="report-preview">
-          <div><strong>{stats.connectedUsers}</strong><span>Connected Users</span></div>
-          <div><strong>{stats.bandwidth} Mbps</strong><span>Avg Bandwidth</span></div>
-          <div><strong>{stats.health}%</strong><span>Health Score</span></div>
-          <div><strong>0.94</strong><span>Fairness Index</span></div>
+          <div><strong>{reportStats.connectedUsers}</strong><span>Connected Users</span></div>
+          <div><strong>{reportStats.bandwidth.toFixed(1)} Mbps</strong><span>Avg Bandwidth</span></div>
+          <div><strong>{reportStats.health}%</strong><span>Health Score</span></div>
+          <div><strong>{fairnessIndex.toFixed(2)}</strong><span>Fairness Index</span></div>
           <div><strong>{users.length}</strong><span>Total Devices</span></div>
-          <div><strong>{perf.latency} ms</strong><span>Avg Latency</span></div>
+          <div><strong>{reportStats.latency} ms</strong><span>Avg Latency</span></div>
         </div>
       </div>
     </motion.div>

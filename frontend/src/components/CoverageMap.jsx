@@ -1,5 +1,4 @@
 import { motion } from "framer-motion";
-import { COVERAGE_ROOMS } from "../data/mockData";
 import "../styles/components.css";
 
 function strengthColor(s) {
@@ -16,7 +15,7 @@ function strengthLabel(s) {
   return "Weak";
 }
 
-export default function CoverageMap() {
+export default function CoverageMap({ rooms = [] }) {
   return (
     <div className="coverage glass">
       <h3 className="section-title"><span className="dot" /> WiFi Coverage Map</h3>
@@ -35,7 +34,7 @@ export default function CoverageMap() {
           <small>Router</small>
         </motion.div>
 
-        {COVERAGE_ROOMS.map((room, i) => {
+        {rooms.map((room, i) => {
           const color = strengthColor(room.strength);
           return (
             <motion.div
