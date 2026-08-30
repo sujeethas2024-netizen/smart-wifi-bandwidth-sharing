@@ -11,6 +11,7 @@ import Analytics from "./pages/Analytics";
 import Network from "./pages/Network";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import ResearchExperiment from "./pages/ResearchExperiment"; // Research experiments
 
 import Sidebar from "./components/Sidebar";
 import Navbar from "./components/Navbar";
@@ -83,6 +84,7 @@ function DashboardLayout() {
               <Route path="/analytics" element={<AdminOnly><Analytics /></AdminOnly>} />
               <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
               <Route path="/settings" element={<AdminOnly><Settings /></AdminOnly>} />
+              <Route path="/research" element={<AdminOnly><ResearchExperiment /></AdminOnly>} />
 
               {/* User-only page */}
               <Route path="/my-usage" element={<UserOnly><MyUsage /></UserOnly>} />

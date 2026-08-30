@@ -99,7 +99,13 @@ def find_best_response(
             activity_weight=user.weight,
 
             congestion_penalty=
-                congestion_penalty
+                congestion_penalty,
+
+            latency=user.latency,
+
+            jitter=user.jitter,
+
+            activity=user.activity,
 
         )
 
@@ -122,6 +128,80 @@ def find_best_response(
         round(best_bandwidth, 2),
         best_utility
     )
+
+
+# ==================================================
+# NASH EQUILIBRIUM VERIFICATION
+# ==================================================
+
+def verify_nash_equilibrium(
+    users,
+    allocations,
+    total_bandwidth,
+    congestion_penalty=0.5,
+    step=0.5
+):
+    """
+    Verify whether a strategy profile is a Nash Equilibrium.
+
+    A profile is a Nash Equilibrium if no player can improve
+    their utility by unilaterally changing their strategy.
+    """
+    for user in users:
+
+        other_usage = sum(
+
+            allocations[
+                other.user_id
+            ]
+
+            for other in users
+
+            if other.user_id != user.user_id
+
+        )
+
+        current_utility = calculate_utility(
+
+            bandwidth=user.allocated_bandwidth,
+
+            total_usage=other_usage + user.allocated_bandwidth,
+
+            total_bandwidth=total_bandwidth,
+
+            activity_weight=user.weight,
+
+            congestion_penalty=congestion_penalty,
+
+            latency=user.latency,
+
+            jitter=user.jitter,
+
+            activity=user.activity,
+
+        )
+
+        _, best_utility = find_best_response(
+
+            user=user,
+
+            users=users,
+
+            current_allocations=allocations,
+
+            total_bandwidth=total_bandwidth,
+
+            congestion_penalty=congestion_penalty,
+
+            step=step,
+
+        )
+
+        if best_utility > current_utility + 1e-6:
+
+            return False
+
+    return True
 
 
 # ==================================================
@@ -286,9 +366,34 @@ def find_nash_equilibrium(
                 user.weight,
 
             congestion_penalty=
-                congestion_penalty
+                congestion_penalty,
+
+            latency=user.latency,
+
+            jitter=user.jitter,
+
+            activity=user.activity,
 
         )
+
+
+    # ----------------------------------------------
+    # Verify Nash Equilibrium condition
+    # ----------------------------------------------
+
+    is_nash = verify_nash_equilibrium(
+
+        users=users,
+
+        allocations=allocations,
+
+        total_bandwidth=total_bandwidth,
+
+        congestion_penalty=congestion_penalty,
+
+        step=step
+
+    )
 
 
     # ----------------------------------------------
@@ -301,6 +406,9 @@ def find_nash_equilibrium(
             allocations,
 
         "iterations":
-            iterations_used
+            iterations_used,
+
+        "is_nash_equilibrium":
+            is_nash
 
     }

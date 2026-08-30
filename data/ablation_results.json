@@ -1,0 +1,73 @@
+{
+  "components": [
+    "throughput_benefit",
+    "congestion_penalty",
+    "latency_penalty",
+    "jitter_penalty",
+    "qos_violation_penalty"
+  ],
+  "impact": {
+    "throughput_benefit": {
+      "total_allocated_mean": 0.0,
+      "utilization_percentage_mean": 0.0,
+      "jain_fairness_index_mean": 0.0,
+      "average_utility_mean": 2.840213
+    },
+    "congestion_penalty": {
+      "total_allocated_mean": 0.0,
+      "utilization_percentage_mean": 0.0,
+      "jain_fairness_index_mean": 0.0,
+      "average_utility_mean": -3.486538
+    },
+    "latency_penalty": {
+      "total_allocated_mean": 0.0,
+      "utilization_percentage_mean": 0.0,
+      "jain_fairness_index_mean": 0.0,
+      "average_utility_mean": -0.318187
+    },
+    "jitter_penalty": {
+      "total_allocated_mean": 0.0,
+      "utilization_percentage_mean": 0.0,
+      "jain_fairness_index_mean": 0.0,
+      "average_utility_mean": -0.217957
+    },
+    "qos_violation_penalty": {
+      "total_allocated_mean": 0.0,
+      "utilization_percentage_mean": 0.0,
+      "jain_fairness_index_mean": 0.0,
+      "average_utility_mean": -0.536145
+    }
+  },
+  "config": {
+    "seed": 42,
+    "repetitions": 2,
+    "user_counts": [
+      5,
+      10
+    ],
+    "total_bandwidth": 100.0,
+    "scenario": "medium",
+    "algorithms": [
+      "equal",
+      "proportional"
+    ],
+    "utility_weights": {
+      "w_throughput": 1.0,
+      "w_latency": 0.5,
+      "w_jitter": 0.3,
+      "w_congestion": 0.5,
+      "w_qos": 0.4
+    },
+    "traffic_class_distribution": {
+      "browsing": 0.2,
+      "online_class": 0.2,
+      "gaming": 0.2,
+      "streaming": 0.2,
+      "downloading": 0.2
+    },
+    "output_directory": "data",
+    "alpha": 1.0,
+    "max_iterations": 100,
+    "description": "Multi-seed reproducible experiment"
+  }
+}

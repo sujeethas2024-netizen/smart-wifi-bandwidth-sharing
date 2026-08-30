@@ -12,6 +12,8 @@ import { BandwidthLine, ConsumptionBar, CategoryDoughnut } from "../components/C
 import { useLiveUsers } from "../hooks/useLiveUsers";
 import { useNetworkStats } from "../hooks/useNetworkStats";
 import { networkApi } from "../services/api";
+import DataSourceLabel from "../components/DataSourceLabel";
+import { SIMULATION } from "../data/provenance";
 import "../styles/pages.css";
 
 export default function Dashboard() {
@@ -49,8 +51,9 @@ export default function Dashboard() {
       packetLoss: stats.packetLoss,
       throughput: stats.throughput,
       jitter: stats.jitter,
+      source: stats.source,
     }),
-    [stats.latency, stats.packetLoss, stats.throughput, stats.jitter]
+    [stats.latency, stats.packetLoss, stats.throughput, stats.jitter, stats.source]
   );
 
   const handleAllocate = () => setAllocating(true);
@@ -76,6 +79,13 @@ export default function Dashboard() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
     >
+      {/* Network mode indicator */}
+      <div className="mode-indicator">
+        <span className="mode-dot" />
+        Network Mode: <strong>RESEARCH SIMULATION</strong>
+        <DataSourceLabel source={SIMULATION} />
+      </div>
+
       <Hero onStart={handleAllocate} />
 
       <StatCards stats={statsComputed} />
@@ -85,7 +95,7 @@ export default function Dashboard() {
         <div className="chart-card glass">
           <div className="chart-head">
             <h3 className="section-title"><span className="dot" /> Bandwidth Usage — Live</h3>
-            <span className="live-chip"><span className="pulse-dot" style={{ background: "#22c55e" }} /> LIVE</span>
+            <DataSourceLabel source={stats.source} />
           </div>
           <div className="chart-body tall">
             <BandwidthLine history={history} />
@@ -96,9 +106,7 @@ export default function Dashboard() {
           <div className="chart-head">
             <h3 className="section-title"><span className="dot" /> Device Category</h3>
             {live && (
-              <span className="live-chip">
-                <span className="pulse-dot" style={{ background: "#22c55e" }} /> LIVE
-              </span>
+              <DataSourceLabel source={SIMULATION} />
             )}
           </div>
           <div className="chart-body">

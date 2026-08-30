@@ -3,6 +3,13 @@ import pandas as pd
 import os
 
 from backend.services.allocation_service import allocate_bandwidth
+from backend.simulation.experiment_runner import run_experiment_json, get_experiment_config
+from backend.data_provenance import SIMULATION, CALCULATED_FROM_REAL_DATA
+from backend.experiments.config_schema import ExperimentConfig
+from backend.experiments.runner import run_multi_seed_experiment
+from backend.experiments.ablation import run_ablation
+from backend.experiments.sensitivity import run_sensitivity_analysis
+from backend.experiments.report import generate_report
 
 
 # ============================================================
@@ -43,10 +50,6 @@ def allocate():
 
     try:
 
-        # ----------------------------------------------------
-        # Get request data
-        # ----------------------------------------------------
-
         data = request.get_json(
             silent=True
         )
@@ -59,10 +62,6 @@ def allocate():
             }), 400
 
 
-        # ----------------------------------------------------
-        # Get total available bandwidth
-        # ----------------------------------------------------
-
         total_bandwidth = float(
             data.get(
                 "total_bandwidth",
@@ -70,10 +69,6 @@ def allocate():
             )
         )
 
-
-        # ----------------------------------------------------
-        # Validate bandwidth
-        # ----------------------------------------------------
 
         if total_bandwidth <= 0:
 
@@ -84,33 +79,8 @@ def allocate():
             }), 400
 
 
-        # ====================================================
-        # GET USERS
-        # ====================================================
-        #
-        # Priority:
-        #
-        # 1. Users sent by frontend
-        # 2. processed_users.csv as fallback
-        #
-        # This means:
-        #
-        # 3 users entered in UI
-        #       ↓
-        # allocation for 3 users
-        #
-        # No users supplied
-        #       ↓
-        # use processed_users.csv
-        #
-        # ====================================================
-
         users = data.get("users")
 
-
-        # ====================================================
-        # CASE 1: FRONTEND PROVIDED USERS
-        # ====================================================
 
         if users:
 
@@ -126,20 +96,12 @@ def allocate():
                 }), 400
 
 
-            # ------------------------------------------------
-            # Required fields
-            # ------------------------------------------------
-
             required_fields = [
                 "user_id",
                 "activity",
                 "requested_bandwidth"
             ]
 
-
-            # ------------------------------------------------
-            # Validate each frontend user
-            # ------------------------------------------------
 
             for user in users:
 
@@ -181,10 +143,6 @@ def allocate():
                     }), 400
 
 
-                # --------------------------------------------
-                # Convert requested bandwidth
-                # --------------------------------------------
-
                 try:
 
                     user["requested_bandwidth"] = float(
@@ -206,25 +164,13 @@ def allocate():
                     }), 400
 
 
-        # ====================================================
-        # CASE 2: NO USERS PROVIDED
-        # ====================================================
-
         else:
-
-            # ------------------------------------------------
-            # Locate processed dataset
-            # ------------------------------------------------
 
             dataset_path = os.path.join(
                 "data",
                 "processed_users.csv"
             )
 
-
-            # ------------------------------------------------
-            # Check dataset exists
-            # ------------------------------------------------
 
             if not os.path.exists(dataset_path):
 
@@ -241,18 +187,10 @@ def allocate():
                 }), 404
 
 
-            # ------------------------------------------------
-            # Load processed dataset
-            # ------------------------------------------------
-
             df = pd.read_csv(
                 dataset_path
             )
 
-
-            # ------------------------------------------------
-            # Check dataset is not empty
-            # ------------------------------------------------
 
             if df.empty:
 
@@ -265,10 +203,6 @@ def allocate():
 
                 }), 400
 
-
-            # ------------------------------------------------
-            # Required dataset columns
-            # ------------------------------------------------
 
             required_fields = [
                 "user_id",
@@ -303,18 +237,10 @@ def allocate():
                 }), 400
 
 
-            # ------------------------------------------------
-            # Convert dataframe to users
-            # ------------------------------------------------
-
             users = df.to_dict(
                 orient="records"
             )
 
-
-            # ------------------------------------------------
-            # Convert bandwidth values
-            # ------------------------------------------------
 
             for user in users:
 
@@ -339,10 +265,6 @@ def allocate():
                     }), 400
 
 
-        # ====================================================
-        # FINAL USER VALIDATION
-        # ====================================================
-
         if not users:
 
             return jsonify({
@@ -355,10 +277,6 @@ def allocate():
             }), 400
 
 
-        # ====================================================
-        # RUN GAME THEORY ALLOCATION
-        # ====================================================
-
         result = allocate_bandwidth(
 
             simulated_users=users,
@@ -367,10 +285,6 @@ def allocate():
 
         )
 
-
-        # ====================================================
-        # RETURN RESULT
-        # ====================================================
 
         return jsonify({
 
@@ -388,10 +302,6 @@ def allocate():
         }), 200
 
 
-    # ========================================================
-    # ERROR HANDLING
-    # ========================================================
-
     except Exception as e:
 
         return jsonify({
@@ -404,4 +314,287 @@ def allocate():
             "error":
                 str(e)
 
+        }), 500
+
+
+# ============================================================
+# EXPERIMENT RUNNER API
+# ============================================================
+
+@bandwidth_bp.route("/experiment/run", methods=["POST"])
+def run_experiment():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        user_counts = data.get("user_counts")
+        total_bandwidth = data.get("total_bandwidth")
+        seed = data.get("seed")
+
+        if user_counts is not None:
+            if not isinstance(user_counts, list) or len(user_counts) == 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "user_counts must be a non-empty list of integers",
+                }), 400
+            user_counts = [int(c) for c in user_counts]
+
+        if total_bandwidth is not None:
+            total_bandwidth = float(total_bandwidth)
+            if total_bandwidth <= 0:
+                return jsonify({
+                    "status": "error",
+                    "message": "total_bandwidth must be greater than 0",
+                }), 400
+
+        if seed is not None:
+            seed = int(seed)
+
+        experiment_data = run_experiment_json(
+            user_counts=user_counts,
+        )
+
+        if total_bandwidth is not None:
+            experiment_data["config"]["total_bandwidth"] = total_bandwidth
+        if seed is not None:
+            experiment_data["config"]["seed"] = seed
+
+        return jsonify({
+            "status": "success",
+            "source": CALCULATED_FROM_REAL_DATA,
+            "data_source": "Synthetic traffic scenarios + Game Theory engine",
+            "provenance": {
+                "user_demand": "SIMULATION (synthetic traffic generator)",
+                "allocation": CALCULATED_FROM_REAL_DATA,
+                "metrics": CALCULATED_FROM_REAL_DATA,
+                "fairness": CALCULATED_FROM_REAL_DATA,
+                "note": (
+                    "User demands are synthetically generated for scalability testing. "
+                    "For real dataset demands, use processed_users.csv with /api/allocate."
+                ),
+            },
+            **experiment_data,
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Experiment failed",
+            "error": str(e),
+        }), 500
+
+
+@bandwidth_bp.route("/experiment/config", methods=["GET"])
+def get_experiment_config_endpoint():
+    config = get_experiment_config()
+    return jsonify({
+        "status": "success",
+        "config": config,
+    }), 200
+
+
+# ============================================================
+# MULTI-SEED EXPERIMENT API
+# ============================================================
+
+@bandwidth_bp.route("/experiment/run-multi-seed", methods=["POST"])
+def run_multi_seed_experiment_endpoint():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        config = ExperimentConfig(
+            seed=data.get("seed", 42),
+            repetitions=data.get("repetitions", 30),
+            user_counts=data.get("user_counts", [5, 10, 20, 30, 50, 100, 200, 373]),
+            total_bandwidth=data.get("total_bandwidth", 100.0),
+            scenario=data.get("scenario", "medium"),
+            algorithms=data.get("algorithms", [
+                "equal", "proportional", "priority", "max_min_fairness", "alpha_fair", "game_theory"
+            ]),
+        )
+
+        result = run_multi_seed_experiment(config)
+
+        return jsonify({
+            "status": "success",
+            "source": CALCULATED_FROM_REAL_DATA,
+            "data_source": "Synthetic traffic scenarios + multi-seed experiment engine",
+            "provenance": {
+                "user_demand": SIMULATION,
+                "allocation": CALCULATED_FROM_REAL_DATA,
+                "metrics": CALCULATED_FROM_REAL_DATA,
+                "fairness": CALCULATED_FROM_REAL_DATA,
+                "statistics": CALCULATED_FROM_REAL_DATA,
+                "note": (
+                    "Multi-seed experiment with " + str(config.repetitions) + " repetitions per configuration. "
+                    "Raw results stored in data/raw_results.csv. Aggregated statistics in data/aggregated_results.csv."
+                ),
+            },
+            **result,
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Multi-seed experiment failed",
+            "error": str(e),
+        }), 500
+
+
+# ============================================================
+# ABLATION STUDY API
+# ============================================================
+
+@bandwidth_bp.route("/experiment/ablation", methods=["POST"])
+def run_ablation_experiment():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        config = ExperimentConfig(
+            seed=data.get("seed", 42),
+            repetitions=data.get("repetitions", 10),
+            user_counts=data.get("user_counts", [10, 50, 100]),
+            total_bandwidth=data.get("total_bandwidth", 100.0),
+            scenario=data.get("scenario", "medium"),
+            algorithms=data.get("algorithms", ["game_theory"]),
+        )
+
+        result = run_ablation(config)
+
+        return jsonify({
+            "status": "success",
+            "source": CALCULATED_FROM_REAL_DATA,
+            "provenance": {
+                "user_demand": SIMULATION,
+                "allocation": CALCULATED_FROM_REAL_DATA,
+                "metrics": CALCULATED_FROM_REAL_DATA,
+                "note": "Ablation study with individual utility components removed.",
+            },
+            **result,
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Ablation study failed",
+            "error": str(e),
+        }), 500
+
+
+# ============================================================
+# SENSITIVITY ANALYSIS API
+# ============================================================
+
+@bandwidth_bp.route("/experiment/sensitivity", methods=["POST"])
+def run_sensitivity_experiment():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        parameter = data.get("parameter", "w_throughput")
+        values = data.get("values", [0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0])
+
+        base_config = ExperimentConfig(
+            seed=data.get("seed", 42),
+            repetitions=data.get("repetitions", 10),
+            user_counts=data.get("user_counts", [10, 50, 100]),
+            total_bandwidth=data.get("total_bandwidth", 100.0),
+            scenario=data.get("scenario", "medium"),
+            algorithms=data.get("algorithms", ["game_theory"]),
+        )
+
+        result = run_sensitivity_analysis(base_config, parameter, values)
+
+        return jsonify({
+            "status": "success",
+            "source": CALCULATED_FROM_REAL_DATA,
+            "provenance": {
+                "user_demand": SIMULATION,
+                "allocation": CALCULATED_FROM_REAL_DATA,
+                "metrics": CALCULATED_FROM_REAL_DATA,
+                "note": f"Sensitivity analysis varying {parameter} across {len(values)} values.",
+            },
+            **result,
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Sensitivity analysis failed",
+            "error": str(e),
+        }), 500
+
+
+# ============================================================
+# REPORT GENERATION API
+# ============================================================
+
+@bandwidth_bp.route("/experiment/report", methods=["GET", "POST"])
+def get_experiment_report():
+    try:
+        if request.method == "POST":
+            data = request.get_json(silent=True) or {}
+            experiment_result = data.get("experiment_result", {})
+            statistics_results = data.get("statistics_results")
+            ablation_results = data.get("ablation_results")
+            sensitivity_results = data.get("sensitivity_results")
+            output_directory = data.get("output_directory", "data")
+        else:
+            experiment_result = {}
+            statistics_results = None
+            ablation_results = None
+            sensitivity_results = None
+            output_directory = "data"
+
+        if experiment_result:
+            os.makedirs(output_directory, exist_ok=True)
+            from backend.experiments.runner import (
+                save_raw_results,
+                save_aggregated_results,
+                save_experiment_config,
+            )
+            raw = experiment_result.get("raw_results", [])
+            agg = experiment_result.get("aggregated_results", [])
+            config_dict = experiment_result.get("config", {})
+            config = ExperimentConfig.from_dict(config_dict)
+            save_raw_results(raw, output_directory)
+            save_aggregated_results(agg, output_directory)
+            save_experiment_config(config, output_directory)
+
+            if statistics_results:
+                with open(os.path.join(output_directory, "statistics_results.json"), "w", encoding="utf-8") as f:
+                    import json
+                    json.dump(statistics_results, f, indent=2)
+            if ablation_results:
+                with open(os.path.join(output_directory, "ablation_results.json"), "w", encoding="utf-8") as f:
+                    import json
+                    json.dump(ablation_results, f, indent=2)
+            if sensitivity_results:
+                with open(os.path.join(output_directory, "sensitivity_results.json"), "w", encoding="utf-8") as f:
+                    import json
+                    json.dump(sensitivity_results, f, indent=2)
+
+        report_config = ExperimentConfig.from_dict(
+            {"output_directory": output_directory}
+        )
+        report_data = generate_report(config=report_config)
+
+        if report_data.get("report_path"):
+            markdown = report_data.get("markdown")
+            return jsonify({
+                "status": "success",
+                "report_path": report_data["report_path"],
+                "report": markdown,
+                "report_content": markdown,
+                "provenance": report_data.get("provenance"),
+            }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "message": "Report generation failed",
+            }), 500
+
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Report generation failed",
+            "error": str(e),
         }), 500

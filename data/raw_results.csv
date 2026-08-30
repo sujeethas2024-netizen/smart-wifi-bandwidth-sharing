@@ -1,0 +1,9 @@
+experiment_id,timestamp,seed,number_of_users,strategy,total_bandwidth,total_allocated,utilization_percentage,jain_fairness_index,average_utility,latency_ms,jitter_ms,repetition,computational_time,convergence_iterations,data_source
+exp_42_5_equal_1,2026-08-30T04:34:56.762050,42,5,equal,100.0,43.51,43.51,0.8536,0.3838,16.95,1.13,1,0.0001,,SIMULATION
+exp_42_5_equal_2,2026-08-30T04:34:56.762129,43,5,equal,100.0,57.93,57.93,0.8118,-1.0786,8.54,4.48,2,0.0001,,SIMULATION
+exp_42_5_proportional_1,2026-08-30T04:34:56.762198,42,5,proportional,100.0,43.51,43.51,0.8536,0.3838,16.95,1.13,1,0.0001,,SIMULATION
+exp_42_5_proportional_2,2026-08-30T04:34:56.762258,43,5,proportional,100.0,57.93,57.93,0.8118,-1.0786,8.54,4.48,2,0.0001,,SIMULATION
+exp_42_10_equal_1,2026-08-30T04:34:56.762336,42,10,equal,100.0,83.16,83.16,0.9016,-1.1497,16.95,1.13,1,0.0001,,SIMULATION
+exp_42_10_equal_2,2026-08-30T04:34:56.762406,43,10,equal,100.0,88.73,88.73,0.9512,-1.6432,8.54,4.48,2,0.0001,,SIMULATION
+exp_42_10_proportional_1,2026-08-30T04:34:56.762477,42,10,proportional,100.0,100.0,100.0,0.7951,-2.6027,16.95,1.13,1,0.0001,,SIMULATION
+exp_42_10_proportional_2,2026-08-30T04:34:56.762549,43,10,proportional,100.0,100.0,100.0,0.8273,-2.6745,8.54,4.48,2,0.0001,,SIMULATION

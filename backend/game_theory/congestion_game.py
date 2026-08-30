@@ -36,7 +36,9 @@ class User:
         self,
         user_id,
         activity,
-        requested_bandwidth
+        requested_bandwidth,
+        latency=0.0,
+        jitter=0.0
     ):
         """
         Represents one Wi-Fi user/player.
@@ -64,18 +66,25 @@ class User:
             1.0
         )
 
+        # QoS measurements for this user.
+        # Defaults to 0.0 (no QoS penalty) when not provided.
+        self.latency = float(latency)
+        self.jitter = float(jitter)
+
         # Initially no bandwidth is allocated
         self.allocated_bandwidth = 0.0
 
         # Initially utility is zero
         self.utility = 0.0
 
-
     def calculate_utility(
         self,
         total_usage,
         total_bandwidth,
-        congestion_penalty=0.5
+        congestion_penalty=0.5,
+        latency=None,
+        jitter=None,
+        activity=None,
     ):
         """
         Calculate this user's utility.
@@ -91,7 +100,14 @@ class User:
 
             activity_weight=self.weight,
 
-            congestion_penalty=congestion_penalty
+            congestion_penalty=congestion_penalty,
+
+            latency=latency if latency is not None else self.latency,
+
+            jitter=jitter if jitter is not None else self.jitter,
+
+            activity=activity or self.activity,
+
         )
 
         return self.utility

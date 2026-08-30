@@ -55,7 +55,15 @@ def create_game_users(simulated_users):
             activity=simulated_user["activity"],
 
             requested_bandwidth=
-                simulated_user["requested_bandwidth"]
+                simulated_user["requested_bandwidth"],
+
+            latency=simulated_user.get(
+                "latency", 0.0
+            ),
+
+            jitter=simulated_user.get(
+                "jitter", 0.0
+            )
 
         )
 

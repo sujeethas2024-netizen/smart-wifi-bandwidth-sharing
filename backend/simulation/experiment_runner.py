@@ -1,22 +1,28 @@
 """
 Experiment Runner
 
-Runs multiple synthetic Wi-Fi bandwidth experiments
-with different numbers of users.
-
-Strategies compared:
+Runs reproducible Wi-Fi bandwidth experiments comparing:
 
 1. Equal Allocation
 2. Proportional Allocation
-3. Game Theory Allocation
+3. Priority-Based Allocation
+4. Game Theory Allocation (Nash Equilibrium)
+
+Experiments vary the number of users and use controlled
+random seeds for reproducibility.
 
 Results are saved as CSV files in the data/ folder.
 
-No external APIs are used.
+Data sources:
+- Synthetic traffic scenarios (user_generator.py)
+- Real dataset fallback (processed_users.csv) via allocation_service
 """
 
 import csv
+import json
 import os
+import random
+from datetime import datetime
 
 from backend.services.evaluation_service import (
     evaluate_all_strategies
@@ -31,21 +37,32 @@ from backend.simulation.traffic_generator import (
 # EXPERIMENT CONFIGURATION
 # ============================================================
 
-USER_COUNTS = [
-    5,
-    10,
-    20,
-    30,
-    50
-]
+EXPERIMENT_CONFIG = {
+    "user_counts": [5, 10, 20, 30, 50, 100, 200, 373],
+    "total_bandwidth": 100.0,
+    "seed": 42,
+    "scenario": "medium",
+    "repetitions": 1,
+    "output_directory": "data",
+    "output_file": "data/experiment_results.csv",
+    "description": "Scalability experiment comparing allocation strategies",
+}
 
-TOTAL_BANDWIDTH = 100.0
 
-OUTPUT_DIRECTORY = "data"
+def get_experiment_config():
+    """Return a copy of the experiment configuration."""
+    return dict(EXPERIMENT_CONFIG)
 
-OUTPUT_FILE = (
-    "data/experiment_results.csv"
-)
+
+def set_experiment_config(**kwargs):
+    """Update experiment configuration (validated keys only)."""
+    allowed = {
+        "user_counts", "total_bandwidth", "seed", "scenario",
+        "repetitions", "output_directory", "output_file", "description",
+    }
+    for key, value in kwargs.items():
+        if key in allowed:
+            EXPERIMENT_CONFIG[key] = value
 
 
 # ============================================================
@@ -56,9 +73,8 @@ def create_data_directory():
     """
     Create the data directory if it does not exist.
     """
-
     os.makedirs(
-        OUTPUT_DIRECTORY,
+        EXPERIMENT_CONFIG["output_directory"],
         exist_ok=True
     )
 
@@ -69,8 +85,9 @@ def create_data_directory():
 
 def run_single_experiment(
     number_of_users,
-    total_bandwidth=TOTAL_BANDWIDTH,
-    seed=42
+    total_bandwidth=None,
+    seed=None,
+    scenario=None,
 ):
     """
     Run one experiment for a specific number of users.
@@ -80,25 +97,34 @@ def run_single_experiment(
     number_of_users : int
         Number of simulated Wi-Fi users.
 
-    total_bandwidth : float
+    total_bandwidth : float or None
         Total available Wi-Fi bandwidth.
 
-    seed : int
+    seed : int or None
         Random seed for reproducibility.
+
+    scenario : str or None
+        Traffic scenario label.
 
     Returns
     -------
     list
         Results for all allocation strategies.
     """
+    if total_bandwidth is None:
+        total_bandwidth = EXPERIMENT_CONFIG["total_bandwidth"]
+    if seed is None:
+        seed = EXPERIMENT_CONFIG["seed"]
+    if scenario is None:
+        scenario = EXPERIMENT_CONFIG["scenario"]
 
     # --------------------------------------------------------
     # Generate synthetic users
     # --------------------------------------------------------
 
-    scenario = generate_traffic_scenario(
+    sim = generate_traffic_scenario(
 
-        scenario="medium",
+        scenario=scenario,
 
         num_users=number_of_users,
 
@@ -108,9 +134,16 @@ def run_single_experiment(
 
     )
 
+    users = sim["users"]
 
-    users = scenario["users"]
+    # --------------------------------------------------------
+    # Use simulated latency/jitter for QoS-aware evaluation
+    # (These are deterministic based on seed for reproducibility)
+    # --------------------------------------------------------
 
+    rng = random.Random(seed)
+    latency = round(rng.uniform(8.0, 22.0), 2)
+    jitter = round(rng.uniform(1.0, 6.0), 2)
 
     # --------------------------------------------------------
     # Evaluate all strategies
@@ -120,10 +153,13 @@ def run_single_experiment(
 
         users,
 
-        total_bandwidth
+        total_bandwidth,
+
+        latency=latency,
+
+        jitter=jitter
 
     )
-
 
     return results
 
@@ -134,11 +170,20 @@ def run_single_experiment(
 
 def create_csv_rows(
     number_of_users,
-    results
+    results,
+    seed=None,
+    latency=None,
+    jitter=None,
 ):
     """
     Convert experiment results into CSV-friendly rows.
     """
+    if seed is None:
+        seed = EXPERIMENT_CONFIG["seed"]
+    if latency is None:
+        latency = 0.0
+    if jitter is None:
+        jitter = 0.0
 
     rows = []
 
@@ -148,6 +193,12 @@ def create_csv_rows(
 
         row = {
 
+            "experiment_id": f"exp_{seed}_{number_of_users}",
+
+            "timestamp": datetime.utcnow().isoformat(),
+
+            "seed": seed,
+
             "number_of_users":
                 number_of_users,
 
@@ -155,7 +206,7 @@ def create_csv_rows(
                 result["strategy"],
 
             "total_bandwidth":
-                TOTAL_BANDWIDTH,
+                EXPERIMENT_CONFIG["total_bandwidth"],
 
             "total_allocated":
                 metrics[
@@ -175,7 +226,13 @@ def create_csv_rows(
             "average_utility":
                 metrics[
                     "average_utility"
-                ]
+                ],
+
+            "latency_ms": latency,
+
+            "jitter_ms": jitter,
+
+            "repetition": 1,
 
         }
 
@@ -190,29 +247,31 @@ def create_csv_rows(
 
 def save_results_to_csv(
     rows,
-    filename=OUTPUT_FILE
+    filename=None
 ):
     """
     Save experiment results to a CSV file.
     """
+    if filename is None:
+        filename = EXPERIMENT_CONFIG["output_file"]
 
     create_data_directory()
 
     fieldnames = [
 
+        "experiment_id",
+        "timestamp",
+        "seed",
         "number_of_users",
-
         "strategy",
-
         "total_bandwidth",
-
         "total_allocated",
-
         "utilization_percentage",
-
         "jain_fairness_index",
-
-        "average_utility"
+        "average_utility",
+        "latency_ms",
+        "jitter_ms",
+        "repetition",
 
     ]
 
@@ -292,6 +351,7 @@ def display_experiment_result(
 
         )
 
+
     print("-" * 80)
 
 
@@ -321,12 +381,27 @@ def run_experiment():
 
     print(
         f"Total Bandwidth : "
-        f"{TOTAL_BANDWIDTH:.2f} Mbps"
+        f"{EXPERIMENT_CONFIG['total_bandwidth']:.2f} Mbps"
     )
 
     print(
         f"User Scenarios  : "
-        f"{USER_COUNTS}"
+        f"{EXPERIMENT_CONFIG['user_counts']}"
+    )
+
+    print(
+        f"Random Seed     : "
+        f"{EXPERIMENT_CONFIG['seed']}"
+    )
+
+    print(
+        f"Scenario        : "
+        f"{EXPERIMENT_CONFIG['scenario']}"
+    )
+
+    print(
+        f"Description     : "
+        f"{EXPERIMENT_CONFIG['description']}"
     )
 
     print()
@@ -339,7 +414,7 @@ def run_experiment():
     # Run every user scenario
     # --------------------------------------------------------
 
-    for number_of_users in USER_COUNTS:
+    for number_of_users in EXPERIMENT_CONFIG["user_counts"]:
 
         print(
             f"Running experiment "
@@ -353,9 +428,11 @@ def run_experiment():
                 number_of_users,
 
             total_bandwidth=
-                TOTAL_BANDWIDTH,
+                EXPERIMENT_CONFIG["total_bandwidth"],
 
-            seed=42
+            seed=EXPERIMENT_CONFIG["seed"],
+
+            scenario=EXPERIMENT_CONFIG["scenario"]
 
         )
 
@@ -377,7 +454,9 @@ def run_experiment():
 
             number_of_users,
 
-            results
+            results,
+
+            seed=EXPERIMENT_CONFIG["seed"]
 
         )
 
@@ -413,7 +492,7 @@ def run_experiment():
     )
 
     print(
-        f"  {OUTPUT_FILE}"
+        f"  {EXPERIMENT_CONFIG['output_file']}"
     )
 
     print()
@@ -424,6 +503,41 @@ def run_experiment():
     )
 
     print()
+
+
+# ============================================================
+# RUN EXPERIMENT AS JSON (for API)
+# ============================================================
+
+def run_experiment_json(user_counts=None):
+    """
+    Run experiment and return results as a JSON-serializable dict.
+    """
+    config = get_experiment_config()
+    if user_counts:
+        config["user_counts"] = list(user_counts)
+
+    all_rows = []
+
+    for number_of_users in config["user_counts"]:
+        results = run_single_experiment(
+            number_of_users=number_of_users,
+            total_bandwidth=config["total_bandwidth"],
+            seed=config["seed"],
+            scenario=config["scenario"],
+        )
+        rows = create_csv_rows(
+            number_of_users,
+            results,
+            seed=config["seed"],
+        )
+        all_rows.extend(rows)
+
+    return {
+        "config": config,
+        "results": all_rows,
+        "total_rows": len(all_rows),
+    }
 
 
 # ============================================================

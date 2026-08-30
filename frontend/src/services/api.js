@@ -59,6 +59,37 @@ export const authApi = {
     apiFetch(`/api/auth/me?username=${encodeURIComponent(username)}`),
 };
 
+/* ---------------- Experiment endpoints ---------------- */
+export const experimentApi = {
+  run: (config) =>
+    apiFetch("/api/experiment/run", {
+      method: "POST",
+      body: JSON.stringify(config),
+    }),
+
+  runMultiSeed: (config) =>
+    apiFetch("/api/experiment/run-multi-seed", {
+      method: "POST",
+      body: JSON.stringify(config),
+    }),
+
+  ablation: (config) =>
+    apiFetch("/api/experiment/ablation", {
+      method: "POST",
+      body: JSON.stringify(config),
+    }),
+
+  sensitivity: (config) =>
+    apiFetch("/api/experiment/sensitivity", {
+      method: "POST",
+      body: JSON.stringify(config),
+    }),
+
+  report: () => apiFetch("/api/experiment/report"),
+
+  config: () => apiFetch("/api/experiment/config"),
+};
+
 /* ---------------- Live network data ---------------- */
 export const networkApi = {
   stats: () => apiFetch("/api/network/stats"),

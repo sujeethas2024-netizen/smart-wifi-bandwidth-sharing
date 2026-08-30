@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Doughnut, Bar } from "react-chartjs-2";
 import {
@@ -17,14 +17,13 @@ import CountUp from "../components/CountUp";
 import { useLiveUsers } from "../hooks/useLiveUsers";
 import { useNetworkStats } from "../hooks/useNetworkStats";
 import { getCurrentUser } from "../services/authService";
+import { SIMULATION } from "../data/provenance";
 import "../styles/pages.css";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement, LineElement,
   BarElement, ArcElement, Tooltip, Legend, Filler
 );
-
-const rand = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
 
 function useChartTheme() {
   const isDark = document.documentElement.getAttribute("data-theme") !== "light";
@@ -54,7 +53,6 @@ export default function MyUsage() {
 
   const theme = useChartTheme();
 
-  // My personal slice — use real allocated/usage from backend, no hardcoded overrides
   const myDevices = useMemo(() => {
     const seed = (user?.username || "user").length;
     return users.slice(seed % 5, (seed % 5) + 3);
@@ -63,48 +61,45 @@ export default function MyUsage() {
   const myTotal = useMemo(() => myDevices.reduce((s, d) => s + (d.allocated || 0), 0), [myDevices]);
   const myUsed = useMemo(() => myDevices.reduce((s, d) => s + (d.usage || 0), 0), [myDevices]);
 
-  // Anchor generated charts around the user's real usage so they reflect actual consumption
   const hourly = useMemo(() => {
     const labels = [];
     const values = [];
     const base = Math.max(2, Math.min(24, myUsed || 10));
-    let v = base;
+    const hour = new Date().getHours();
     for (let i = 23; i >= 0; i--) {
-      labels.push(`${String((new Date().getHours() - i + 24) % 24).padStart(2, "0")}:00`);
-      v = Math.max(1, Math.min(28, v + rand(-3, 3)));
-      values.push(v);
+      const h = (hour - i + 24) % 24;
+      labels.push(`${String(h).padStart(2, "0")}:00`);
+      const active = h >= 8 && h <= 22;
+      const v = active ? base + 2 : Math.max(1, base - 3);
+      values.push(Math.round(v * 10) / 10);
     }
     return { labels, values };
   }, [tick === 0, myUsed]); // eslint-disable-line
 
-  const categories = useMemo(
-    () => {
-      const base = Math.max(5, myUsed || 15);
-      const remaining = Math.max(0, 45 - base);
-      const parts = [rand(18, 28), rand(8, 16), rand(10, 20), rand(6, 14), rand(4, 12)];
-      const sum = parts.reduce((a, b) => a + b, 0);
-      const scaled = parts.map((v) => Math.round((v / sum) * base));
-      const diff = base - scaled.reduce((a, b) => a + b, 0);
-      scaled[0] += diff;
-      return {
-        labels: ["Streaming", "Gaming", "Browsing", "Downloads", "Calls"],
-        datasets: [
-          {
-            data: scaled,
-            backgroundColor: ["#2563eb", "#7c3aed", "#14b8a6", "#f59e0b", "#ef4444"],
-            borderColor: "transparent",
-            hoverOffset: 10,
-            cutout: "62%",
-          },
-        ],
-      };
-    },
-    [tick, myUsed]
-  );
+  const categories = useMemo(() => {
+    const base = Math.max(5, myUsed || 15);
+    const streaming = Math.round(base * 0.35);
+    const gaming = Math.round(base * 0.15);
+    const browsing = Math.round(base * 0.25);
+    const downloads = Math.round(base * 0.15);
+    const calls = Math.max(1, base - streaming - gaming - browsing - downloads);
+    return {
+      labels: ["Streaming", "Gaming", "Browsing", "Downloads", "Calls"],
+      datasets: [
+        {
+          data: [streaming, gaming, browsing, downloads, calls],
+          backgroundColor: ["#2563eb", "#7c3aed", "#14b8a6", "#f59e0b", "#ef4444"],
+          borderColor: "transparent",
+          hoverOffset: 10,
+          cutout: "62%",
+        },
+      ],
+    };
+  }, [tick, myUsed]);
 
   const weekly = useMemo(() => {
     const base = Math.max(1, Math.round((myUsed || 5) * 3.5));
-    const days = Array.from({ length: 7 }, () => Math.max(1, base + rand(-3, 3)));
+    const days = [base - 1, base, base + 1, base, base - 2, base + 2, base + 1].map((v) => Math.max(1, v));
     return {
       labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
       datasets: [
@@ -162,9 +157,9 @@ export default function MyUsage() {
           <h2 className="page-title">📊 My Usage</h2>
           <p className="text-dim">Personal consumption insights for {user?.fullName || user?.username}</p>
         </div>
+        <span className="sim-chip">SIMULATION</span>
       </div>
 
-      {/* Summary */}
       <div className="stat-grid">
         {[
           { label: "This Week", value: totalGB, suffix: " GB", color: "#2563eb" },
@@ -181,59 +176,57 @@ export default function MyUsage() {
               </span>
             </div>
             <div className="progress-track mini">
-              <div
-                className="progress-fill"
-                style={{
-                  width: c.label === "Monthly Quota" ? "100%" : `${Math.min(100, (c.value / quotaGB) * 100)}%`,
-                  background: `linear-gradient(90deg, ${c.color}77, ${c.color})`,
-                }}
-              />
+              <div className="progress-fill" style={{
+                width: c.label === "Monthly Quota" ? "100%" : `${Math.min(100, (c.value / quotaGB) * 100)}%`,
+                background: `linear-gradient(90deg, ${c.color}77, ${c.color})`,
+              }} />
             </div>
           </motion.div>
         ))}
       </div>
 
-      {/* Hourly usage */}
       <div className="chart-card glass">
-        <h3 className="section-title"><span className="dot" /> My Usage — Last 24 Hours</h3>
+        <div className="chart-head">
+          <h3 className="section-title"><span className="dot" /> My Usage — Last 24 Hours</h3>
+          <span className="sim-chip">{SIMULATION}</span>
+        </div>
         <div className="chart-body tall">
-          <Bar
-            data={{
-              labels: hourly.labels,
-              datasets: [
-                {
-                  label: "Mbps",
-                  data: hourly.values,
-                  backgroundColor: hourly.values.map((v) =>
-                    v > 18 ? "#ef4444" : v > 12 ? "#f59e0b" : "#2563eb"
-                  ),
-                  borderRadius: 6,
-                },
-              ],
-            }}
-            options={baseOptions}
-          />
+          <Bar data={{
+            labels: hourly.labels,
+            datasets: [
+              {
+                label: "Mbps",
+                data: hourly.values,
+                backgroundColor: hourly.values.map((v) => (v > 18 ? "#ef4444" : v > 12 ? "#f59e0b" : "#2563eb")),
+                borderRadius: 6,
+              },
+            ],
+          }} options={baseOptions} />
         </div>
       </div>
 
-      {/* Category + weekly */}
       <div className="grid-2">
         <div className="chart-card glass">
-          <h3 className="section-title"><span className="dot" /> My Traffic by App</h3>
+          <div className="chart-head">
+            <h3 className="section-title"><span className="dot" /> My Traffic by App</h3>
+            <span className="sim-chip">{SIMULATION}</span>
+          </div>
           <div className="chart-body">
             <Doughnut data={categories} options={{ ...baseOptions, scales: {} }} />
           </div>
         </div>
 
         <div className="chart-card glass">
-          <h3 className="section-title"><span className="dot" /> Weekly Consumption</h3>
+          <div className="chart-head">
+            <h3 className="section-title"><span className="dot" /> Weekly Consumption</h3>
+            <span className="sim-chip">{SIMULATION}</span>
+          </div>
           <div className="chart-body">
             <Bar data={weekly} options={baseOptions} />
           </div>
         </div>
       </div>
 
-      {/* Tip banner */}
       <motion.div className="info-banner glass" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
         💡
         <p>

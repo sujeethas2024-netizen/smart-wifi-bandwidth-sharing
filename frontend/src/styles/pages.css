@@ -641,3 +641,75 @@
   .sig-label { order: 2; }
   .signal-row .mono { display: none; }
 }
+
+/* ---------------- Data Source Badges ---------------- */
+.mode-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  background: rgba(148,163,184,0.08);
+  border: 1px solid rgba(148,163,184,0.18);
+  border-radius: 999px;
+  padding: 6px 14px;
+}
+.mode-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+.sim-chip {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #f59e0b;
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 999px;
+  padding: 4px 10px;
+}
+.data-source-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 3px 9px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* ---------------- Experiment Config ---------------- */
+.exp-config {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: flex-end;
+}
+.exp-config label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+.exp-config input {
+  background: rgba(15,23,42,0.35);
+  border: 1px solid rgba(148,163,184,0.18);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text);
+  font-size: 0.9rem;
+  min-width: 160px;
+}
+.exp-config button {
+  height: 42px;
+  align-self: flex-end;
+}
