@@ -9,6 +9,9 @@ PROJECT_ROOT = os.path.abspath(
 )
 BACKEND_PATH = os.path.join(PROJECT_ROOT, "backend")
 
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
 if BACKEND_PATH not in sys.path:
     sys.path.insert(0, BACKEND_PATH)
 
