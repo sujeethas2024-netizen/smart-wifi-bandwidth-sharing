@@ -146,7 +146,7 @@ export default function Reports() {
       doc.setFontSize(9);
       doc.setTextColor(148, 163, 184);
       doc.text(
-        "Developed by Sujeetha & Rohith — Final Year Project 2026",
+        "Developed by Sujeetha ",
         14,
         285
       );

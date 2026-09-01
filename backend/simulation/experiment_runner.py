@@ -234,6 +234,27 @@ def create_csv_rows(
 
             "repetition": 1,
 
+            "convergence_iterations":
+                result.get(
+                    "convergence_iterations"
+                ) if result.get(
+                    "strategy"
+                ) == "Game Theory" else None,
+
+            "converged":
+                result.get(
+                    "converged"
+                ) if result.get(
+                    "strategy"
+                ) == "Game Theory" else None,
+
+            "is_nash_equilibrium":
+                result.get(
+                    "is_nash_equilibrium"
+                ) if result.get(
+                    "strategy"
+                ) == "Game Theory" else None,
+
         }
 
         rows.append(row)
@@ -272,6 +293,9 @@ def save_results_to_csv(
         "latency_ms",
         "jitter_ms",
         "repetition",
+        "convergence_iterations",
+        "converged",
+        "is_nash_equilibrium",
 
     ]
 

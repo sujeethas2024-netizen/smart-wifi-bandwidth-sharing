@@ -153,3 +153,95 @@ class TestMultiSeedReproducibility:
             scenario="medium",
         )
         assert len(results1) == len(results2)
+
+
+class TestNashMetricsInExperimentOutput:
+    def test_game_theory_has_convergence_iterations(self):
+        results = run_single_experiment(
+            number_of_users=5,
+            total_bandwidth=40.0,
+            seed=42,
+            scenario="medium",
+        )
+        gt = [r for r in results if r["strategy"] == "Game Theory"][0]
+        assert "convergence_iterations" in gt
+        assert isinstance(gt["convergence_iterations"], int)
+        assert gt["convergence_iterations"] > 0
+
+    def test_game_theory_has_converged_flag(self):
+        results = run_single_experiment(
+            number_of_users=5,
+            total_bandwidth=40.0,
+            seed=42,
+            scenario="medium",
+        )
+        gt = [r for r in results if r["strategy"] == "Game Theory"][0]
+        assert "converged" in gt
+        assert isinstance(gt["converged"], bool)
+
+    def test_game_theory_has_nash_verification(self):
+        results = run_single_experiment(
+            number_of_users=5,
+            total_bandwidth=40.0,
+            seed=42,
+            scenario="medium",
+        )
+        gt = [r for r in results if r["strategy"] == "Game Theory"][0]
+        assert "is_nash_equilibrium" in gt
+        assert isinstance(gt["is_nash_equilibrium"], bool)
+
+    def test_non_game_theory_rows_have_no_fabricated_nash_metrics(self):
+        results = run_single_experiment(
+            number_of_users=5,
+            total_bandwidth=40.0,
+            seed=42,
+            scenario="medium",
+        )
+        non_gt = [r for r in results if r["strategy"] != "Game Theory"]
+        for r in non_gt:
+            assert r.get("convergence_iterations") is None
+            assert r.get("converged") is None
+            assert r.get("is_nash_equilibrium") is None
+
+    def test_existing_metrics_unchanged(self):
+        results = run_single_experiment(
+            number_of_users=5,
+            total_bandwidth=40.0,
+            seed=42,
+            scenario="medium",
+        )
+        for r in results:
+            metrics = r["metrics"]
+            assert "total_allocated" in metrics
+            assert "utilization" in metrics
+            assert "fairness" in metrics
+            assert "average_utility" in metrics
+
+    def test_csv_rows_include_nash_fields_for_game_theory(self):
+        results = run_single_experiment(
+            number_of_users=5,
+            total_bandwidth=40.0,
+            seed=42,
+            scenario="medium",
+        )
+        rows = create_csv_rows(5, results, seed=42)
+        gt_rows = [r for r in rows if r["strategy"] == "Game Theory"]
+        assert len(gt_rows) == 1
+        gt_row = gt_rows[0]
+        assert "convergence_iterations" in gt_row
+        assert "converged" in gt_row
+        assert "is_nash_equilibrium" in gt_row
+
+    def test_csv_rows_have_null_nash_fields_for_baselines(self):
+        results = run_single_experiment(
+            number_of_users=5,
+            total_bandwidth=40.0,
+            seed=42,
+            scenario="medium",
+        )
+        rows = create_csv_rows(5, results, seed=42)
+        baseline_rows = [r for r in rows if r["strategy"] != "Game Theory"]
+        for r in baseline_rows:
+            assert r.get("convergence_iterations") is None
+            assert r.get("converged") is None
+            assert r.get("is_nash_equilibrium") is None

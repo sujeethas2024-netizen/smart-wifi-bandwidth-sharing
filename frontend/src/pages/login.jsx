@@ -157,7 +157,7 @@ export default function Login() {
         </div>
 
         <h1>Smart WiFi <span className="grad-text">Bandwidth Sharing</span></h1>
-        <p className="login-sub">Game Theory based fair bandwidth allocation · Final Year Project 2026</p>
+        <p className="login-sub">Game Theory based fair bandwidth allocation </p>
 
         {/* Mode tabs */}
         <div className="auth-tabs">

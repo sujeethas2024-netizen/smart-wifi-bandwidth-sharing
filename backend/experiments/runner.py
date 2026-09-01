@@ -134,6 +134,8 @@ def run_single_repetition(
         "repetition": repetition,
         "computational_time": computational_time,
         "convergence_iterations": result.get("convergence_iterations"),
+        "converged": result.get("converged"),
+        "is_nash_equilibrium": result.get("is_nash_equilibrium"),
         "data_source": SIMULATION,
     }
 
@@ -169,6 +171,7 @@ def calculate_aggregated_statistics(raw_results: list) -> list:
         "jain_fairness_index",
         "average_utility",
         "computational_time",
+        "convergence_iterations",
     ]
 
     grouped = df.groupby(["number_of_users", "strategy"])
@@ -290,6 +293,16 @@ def run_multi_seed_experiment(config: ExperimentConfig) -> Dict[str, Any]:
     save_aggregated_results(aggregated, config.output_directory)
     save_experiment_config(config, config.output_directory)
 
+    from backend.experiments.statistics import (
+        run_all_pairwise_comparisons,
+        calculate_nash_statistics,
+        save_statistical_results,
+    )
+
+    comparisons = run_all_pairwise_comparisons(raw_results)
+    nash_stats = calculate_nash_statistics(raw_results)
+    stat_paths = save_statistical_results(comparisons, nash_stats, config.output_directory)
+
     return {
         "status": "success",
         "config": config.to_dict(),
@@ -297,6 +310,9 @@ def run_multi_seed_experiment(config: ExperimentConfig) -> Dict[str, Any]:
         "aggregated_results": aggregated,
         "total_raw_rows": len(raw_results),
         "total_aggregated_rows": len(aggregated),
+        "statistical_results": comparisons,
+        "nash_statistics": nash_stats,
+        "statistical_output_files": stat_paths,
         "provenance": {
             "user_demand": SIMULATION,
             "allocation": CALCULATED_FROM_REAL_DATA,
@@ -379,6 +395,8 @@ def save_raw_results(raw_results: list, output_directory: str):
         "repetition",
         "computational_time",
         "convergence_iterations",
+        "converged",
+        "is_nash_equilibrium",
         "data_source",
     ]
 

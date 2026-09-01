@@ -23,9 +23,9 @@ export default function Footer() {
         <span>Developed by</span>
         <div className="footer-names">
           <span className="dev-chip">👨‍💻 Sujeetha</span>
-          <span className="dev-chip">👨‍💻 Rohith</span>
+          
         </div>
-        <span className="footer-year">© 2026 Final Year Project</span>
+        
       </div>
 
       <div className="footer-links">

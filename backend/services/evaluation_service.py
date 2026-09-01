@@ -633,7 +633,22 @@ def evaluate_game_theory(
             allocations,
 
         "metrics":
-            metrics
+            metrics,
+
+        "convergence_iterations":
+            result.get(
+                "convergence_iterations"
+            ),
+
+        "converged":
+            result.get(
+                "converged"
+            ),
+
+        "is_nash_equilibrium":
+            result.get(
+                "is_nash_equilibrium"
+            )
 
     }
 

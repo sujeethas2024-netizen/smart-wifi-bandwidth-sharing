@@ -354,6 +354,18 @@ def allocate_bandwidth(
         "iterations":
             iterations,
 
+        "convergence_iterations":
+            iterations,
+
+        "converged":
+            iterations < max_iterations,
+
+        "is_nash_equilibrium":
+            nash_result.get(
+                "is_nash_equilibrium",
+                False
+            ),
+
         "users":
             user_results
 

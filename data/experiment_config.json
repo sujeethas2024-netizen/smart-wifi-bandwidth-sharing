@@ -1,15 +1,25 @@
 {
   "seed": 42,
-  "repetitions": 2,
+  "repetitions": 10,
   "user_counts": [
     5,
-    10
+    10,
+    20,
+    30,
+    50,
+    100,
+    200,
+    373
   ],
   "total_bandwidth": 100.0,
   "scenario": "medium",
   "algorithms": [
     "equal",
-    "proportional"
+    "proportional",
+    "priority",
+    "max_min_fairness",
+    "alpha_fair",
+    "game_theory"
   ],
   "utility_weights": {
     "w_throughput": 1.0,

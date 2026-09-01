@@ -357,6 +357,18 @@ Output:
 - The best-response dynamic may not converge in all congestion games, but for the specific utility structure used here (logarithmic benefit minus linear congestion cost), empirical convergence is observed within 10-30 iterations for typical network sizes.
 - Grid search with step δ introduces approximation error: the returned equilibrium is an ε-equilibrium with ε = O(δ).
 
+### 4.6 Recorded Nash Metrics
+
+When Game Theory results are written to experiment output CSVs, the following Nash-specific fields are recorded:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `convergence_iterations` | int | Number of best-response iterations performed before stopping. |
+| `converged` | bool | True if the algorithm stopped because the total allocation change fell below the step threshold (δ) before reaching `max_iterations`. |
+| `is_nash_equilibrium` | bool | Result of `verify_nash_equilibrium()` on the final allocation profile. True means no player can improve utility by unilaterally changing their allocated bandwidth. |
+
+For non-Game-Theory algorithms, these fields are set to `None` to avoid fabricating convergence data.
+
 ---
 
 ## 5. Baseline Allocation Algorithms
