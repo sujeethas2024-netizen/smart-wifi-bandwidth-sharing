@@ -695,9 +695,10 @@ def max_min_fairness_allocation(
         for uid in active_uids:
             needed = demands[uid] - allocations[uid]
             give = min(equal_share, needed)
-            allocations[uid] += give
-            remaining -= give
-            updated = True
+            if give > 0:
+                allocations[uid] += give
+                remaining -= give
+                updated = True
 
         if not updated:
             break

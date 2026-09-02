@@ -405,7 +405,9 @@ def save_sensitivity_results(raw_rows: list, output_directory: str):
 
     filepath = os.path.join(output_directory, "sensitivity_results.csv")
 
-    with open(filepath, "w", newline="", encoding="utf-8") as f:
+    file_exists = os.path.exists(filepath)
+    with open(filepath, "a", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        writer.writeheader()
+        if not file_exists:
+            writer.writeheader()
         writer.writerows(raw_rows)

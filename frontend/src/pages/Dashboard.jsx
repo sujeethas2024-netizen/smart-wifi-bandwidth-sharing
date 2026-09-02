@@ -8,9 +8,11 @@ import HealthGauge from "../components/HealthGauge";
 import PerformanceCards from "../components/PerformanceCards";
 import AIRecommendations from "../components/AIRecommendations";
 import AllocationAnimation from "../components/AllocationAnimation";
+import ActiveUsersList from "../components/ActiveUsersList";
 import { BandwidthLine, ConsumptionBar, CategoryDoughnut } from "../components/Charts";
 import { useLiveUsers } from "../hooks/useLiveUsers";
 import { useNetworkStats } from "../hooks/useNetworkStats";
+import { fetchActiveUsers } from "../services/authService";
 import { networkApi } from "../services/api";
 import DataSourceLabel from "../components/DataSourceLabel";
 import { SIMULATION } from "../data/provenance";
@@ -21,8 +23,42 @@ export default function Dashboard() {
   const { stats, history, live } = useNetworkStats();
   const [allocating, setAllocating] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeUsers, setActiveUsers] = useState([]);
+  const [activeUsersError, setActiveUsersError] = useState("");
 
-  // Skeleton loader on first mount
+  useEffect(() => {
+    let mounted = true;
+    let intervalId = null;
+
+    async function fetchAndPoll() {
+      const res = await fetchActiveUsers();
+      if (!mounted) return;
+
+      if (res.unauthorized) {
+        clearInterval(intervalId);
+        setActiveUsers([]);
+        setActiveUsersError("Session expired. Please log in again.");
+        return;
+      }
+
+      if (res.ok) {
+        setActiveUsers(res.users || []);
+        setActiveUsersError("");
+      } else if (res.offline) {
+        // Network error: retain previous data, report error for this cycle
+        setActiveUsersError(res.error || "Server unreachable");
+      }
+    }
+
+    fetchAndPoll();
+    intervalId = setInterval(fetchAndPoll, 10000); // 10-second polling
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
+
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 700);
     return () => clearTimeout(t);
@@ -152,6 +188,13 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* Server-authoritative active users (real-time presence) */}
+      <ActiveUsersList
+        users={activeUsers}
+        error={activeUsersError}
+        loading={activeUsers.length === 0 && !activeUsersError}
+      />
 
       <AllocationAnimation open={allocating} onComplete={() => setAllocating(false)} />
     </motion.div>

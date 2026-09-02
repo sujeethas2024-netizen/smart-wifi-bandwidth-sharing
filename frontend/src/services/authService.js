@@ -4,10 +4,14 @@
    is unreachable, so the demo always works offline too.
    ============================================================ */
 
-import { authApi } from "./api";
+import { authApi, apiBase } from "./api";
 
 const MIRROR_KEY = "swbs-accounts";     // offline fallback mirror
 const SESSION_KEY = "swbs-session";
+
+/* ---------------- Heartbeat lifecycle ---------------- */
+const HEARTBEAT_INTERVAL = 30000; // ~30 seconds
+let heartbeatTimerId = null;
 
 /* ---------------- Validation patterns ---------------- */
 export const USERNAME_RULES = [
@@ -108,20 +112,194 @@ function mirrorUpsert(account) {
 })();
 
 /* ---------------- Session ---------------- */
-export function setSession(user) {
-  sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+export function setSession(user, sessionId) {
+  const payload = { user: user || null, sessionId: sessionId || null };
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(payload));
 }
 
 export function getCurrentUser() {
   try {
-    return JSON.parse(sessionStorage.getItem(SESSION_KEY));
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && "user" in parsed) {
+      return parsed.user;
+    }
+    return parsed;
   } catch {
     return null;
   }
 }
 
-export function logout() {
+export function getSessionId() {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && "sessionId" in parsed) {
+      return parsed.sessionId || null;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function logout() {
+  stopHeartbeat();
+  const sid = getSessionId();
+  // Always clear the local session, even if the server call fails —
+  // the user must not remain "logged in" merely because the server
+  // is unreachable.
   sessionStorage.removeItem(SESSION_KEY);
+  if (!sid) {
+    return { ok: true, status: "signed_out" };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(`${apiBase()}/api/auth/logout`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sid}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return await res.json();
+  } catch (err) {
+    clearTimeout(timer);
+    return { ok: false, offline: true, error: "Backend not reachable" };
+  }
+}
+
+/* ---------------- Authenticated heartbeat ---------------- */
+
+/**
+ * Internal handler for heartbeat results.
+ * - 401 (unauthorized) → stop the timer and clear the local session.
+ * - Network errors (offline) → keep the session; the next scheduled
+ *   heartbeat attempt will retry.
+ */
+function handleHeartbeatResult(res) {
+  if (res && res.unauthorized) {
+    stopHeartbeat();
+    setSession(null, null);
+  }
+}
+
+/**
+ * Stop the automatic heartbeat timer.
+ * Safe to call when no timer is running (idempotent).
+ */
+export function stopHeartbeat() {
+  if (heartbeatTimerId !== null) {
+    clearInterval(heartbeatTimerId);
+    heartbeatTimerId = null;
+  }
+}
+
+/**
+ * Start the automatic heartbeat lifecycle.
+ *
+ * - Sends one immediate heartbeat right away.
+ * - Schedules a follow-up heartbeat every HEARTBEAT_INTERVAL (≈30 s).
+ * - Does nothing (returns false) when there is no valid session ID or
+ *   when a timer is already running (prevents duplicates).
+ *
+ * Returns `true` if the lifecycle was started.
+ */
+export function startHeartbeat() {
+  const sid = getSessionId();
+  if (!sid) {
+    return false;
+  }
+  if (heartbeatTimerId !== null) {
+    return false;
+  }
+  heartbeat()
+    .then(handleHeartbeatResult)
+    .catch(() => {});
+  heartbeatTimerId = setInterval(() => {
+    heartbeat().then(handleHeartbeatResult).catch(() => {});
+  }, HEARTBEAT_INTERVAL);
+  return true;
+}
+
+/**
+ * Send an authenticated heartbeat to the backend.
+ * Uses the stored session ID and Authorization: Bearer header.
+ * Returns { ok:true, status, lastSeen } on success or
+ *         { ok:false, offline?, error } on failure / missing session.
+ * On HTTP 401 the result is tagged with `unauthorized: true` so the
+ * heartbeat lifecycle can tear down the local session.
+ */
+export async function heartbeat() {
+  const sid = getSessionId();
+  if (!sid) {
+    return { ok: false, error: "No active session." };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(`${apiBase()}/api/auth/heartbeat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sid}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    const data = await res.json();
+    if (res.status === 401) {
+      return { ...data, unauthorized: true };
+    }
+    return data;
+  } catch (err) {
+     clearTimeout(timer);
+    return { ok: false, offline: true, error: "Backend not reachable" };
+  }
+}
+
+/* ---------------- Active-users API ---------------- */
+
+/**
+ * Fetch the server-authoritative list of currently active users.
+ * Uses getSessionId() + Authorization: Bearer header — same pattern
+ * as heartbeat() and logout().
+ *
+ * Returns the parsed JSON on success: { ok:true, count, users }
+ * On HTTP 401 → { ok:false, unauthorized:true, ... }
+ * On network error → { ok:false, offline:true, error }
+ */
+export async function fetchActiveUsers() {
+  const sid = getSessionId();
+  if (!sid) {
+    return { ok: false, offline: true, error: "No active session." };
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  try {
+    const res = await fetch(`${apiBase()}/api/auth/active-users`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${sid}`,
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    const data = await res.json();
+    if (res.status === 401) {
+      return { ...data, unauthorized: true };
+    }
+    return data;
+  } catch (err) {
+    clearTimeout(timer);
+    return { ok: false, offline: true, error: "Backend not reachable" };
+  }
 }
 
 /* ---------------- Public async API ---------------- */
@@ -187,8 +365,11 @@ export async function login(username, password) {
 
   if (!res.offline) {
     if (res.ok) {
-      setSession(res.user);
-      return { ok: true, user: res.user };
+      setSession(res.user, res.sessionId);
+      if (res.sessionId) {
+        startHeartbeat();
+      }
+      return { ok: true, user: res.user, sessionId: res.sessionId };
     }
     return { ok: false, error: res.error || "Login failed." };
   }
@@ -204,8 +385,8 @@ export async function login(username, password) {
     return { ok: false, error: "Incorrect password. Please try again." };
   }
   const user = publicView(account);
-  setSession(user);
-  return { ok: true, user };
+  setSession(user, null);
+  return { ok: true, user, sessionId: null };
 }
 
 /** Live username availability from backend (falls back to mirror). */

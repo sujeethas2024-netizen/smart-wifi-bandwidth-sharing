@@ -20,6 +20,21 @@ PASSWORD_PATTERN = r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&#])[^\s]{8,32}$
 
 VALID_ROLES = ("admin", "user")
 
+# Status values for live_sessions.status
+LIVE_SESSION_STATUS_ACTIVE = "active"
+LIVE_SESSION_STATUS_REVOKED = "revoked"
+
+# Configurable inactivity timeout for live sessions. Heartbeats must arrive
+# within this window for a session to be considered active. Centralised
+# here so the value lives in exactly one place.
+LIVE_SESSION_TIMEOUT_SECONDS = int(
+    os.environ.get("LIVE_SESSION_TIMEOUT_SECONDS", "90")
+)
+
+
+def _utcnow_iso() -> str:
+    return datetime.utcnow().isoformat()
+
 
 def _hash_password(password: str, salt: str = None):
     """Salted SHA-256 hash. Returns (salt, hash)."""
@@ -55,6 +70,29 @@ def init_db():
             )
             """
         )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS live_sessions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_id TEXT UNIQUE NOT NULL,
+                username TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                status TEXT NOT NULL DEFAULT 'active',
+                ip_address TEXT DEFAULT '',
+                user_agent TEXT DEFAULT ''
+            )
+            """
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_live_sessions_username "
+            "ON live_sessions(username)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_live_sessions_last_seen "
+            "ON live_sessions(last_seen)"
+        )
+
         # Seed default admin once
         row = conn.execute(
             "SELECT id FROM accounts WHERE username = ?", ("admin",)
@@ -233,6 +271,150 @@ def public_account(account: dict):
         "deviceCount": account["device_count"],
         "createdAt": account["created_at"],
         "lastLogin": account.get("last_login"),
+    }
+
+
+# ---------------- Live sessions ----------------
+
+def create_live_session(
+    session_id: str,
+    username: str,
+    ip_address: str = "",
+    user_agent: str = "",
+):
+    """Insert a new live session row. Returns the inserted record dict or None.
+
+    session_id must be unique. If a collision occurs, None is returned so
+    the caller can regenerate. The same username may have many live
+    sessions simultaneously.
+    """
+    if not session_id or not username:
+        return None
+    now = _utcnow_iso()
+    conn = get_connection()
+    try:
+        conn.execute(
+            """
+            INSERT INTO live_sessions
+                (session_id, username, created_at, last_seen, status,
+                 ip_address, user_agent)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                session_id,
+                username,
+                now,
+                now,
+                LIVE_SESSION_STATUS_ACTIVE,
+                (ip_address or "")[:64],
+                (user_agent or "")[:256],
+            ),
+        )
+        conn.commit()
+    except sqlite3.IntegrityError:
+        return None
+    finally:
+        conn.close()
+    return get_live_session(session_id)
+
+
+def get_live_session(session_id: str):
+    """Return a session dict by its unique session_id, or None."""
+    if not session_id:
+        return None
+    conn = get_connection()
+    try:
+        row = conn.execute(
+            "SELECT * FROM live_sessions WHERE session_id = ?",
+            (session_id,),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def touch_live_session(session_id: str):
+    """Update last_seen for an existing session to now.
+
+    Only touches sessions that are still marked active. Returns True if
+    a row was updated, False otherwise.
+    """
+    if not session_id:
+        return False
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            UPDATE live_sessions
+            SET last_seen = ?
+            WHERE session_id = ? AND status = ?
+            """,
+            (_utcnow_iso(), session_id, LIVE_SESSION_STATUS_ACTIVE),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def revoke_live_session(session_id: str):
+    """Mark a session revoked (or remove it if not found). Returns True on
+    success. Revoked sessions are excluded from list_active_sessions.
+    """
+    if not session_id:
+        return False
+    conn = get_connection()
+    try:
+        cur = conn.execute(
+            """
+            UPDATE live_sessions
+            SET status = ?
+            WHERE session_id = ?
+            """,
+            (LIVE_SESSION_STATUS_REVOKED, session_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def list_active_sessions(timeout_seconds: int = None):
+    """Return all sessions whose last_seen is within the timeout window
+    and whose status is still active. Fully dynamic — no fixed user limit.
+    """
+    if timeout_seconds is None:
+        timeout_seconds = LIVE_SESSION_TIMEOUT_SECONDS
+    # We store ISO-8601 strings (UTC, 'T' separator) and compare against
+    # a Python-computed cutoff in the same format. Lexicographic string
+    # comparison is reliable for this fixed-width format.
+    from datetime import datetime as _dt, timedelta as _td
+
+    cutoff = (_dt.utcnow() - _td(seconds=int(timeout_seconds))).isoformat()
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT * FROM live_sessions
+            WHERE status = ?
+              AND last_seen >= ?
+            ORDER BY last_seen DESC
+            """,
+            (LIVE_SESSION_STATUS_ACTIVE, cutoff),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def public_live_session(session: dict):
+    """Return a sanitised view of a live session for API responses."""
+    return {
+        "sessionId": session["session_id"],
+        "username": session["username"],
+        "createdAt": session["created_at"],
+        "lastSeen": session["last_seen"],
+        "status": session.get("status"),
     }
 
 

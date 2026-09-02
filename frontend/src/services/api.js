@@ -23,7 +23,10 @@ export async function apiFetch(path, options = {}, timeoutMs = 6000) {
 
   try {
     const res = await fetch(`${apiBase()}${path}`, {
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
       signal: controller.signal,
       ...options,
     });
@@ -57,6 +60,27 @@ export const authApi = {
 
   me: (username) =>
     apiFetch(`/api/auth/me?username=${encodeURIComponent(username)}`),
+
+  active: () => {
+    let sid = null;
+    try {
+      const raw = sessionStorage.getItem("swbs-session");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.sessionId) sid = parsed.sessionId;
+      }
+    } catch {
+      sid = null;
+    }
+    return apiFetch(
+      "/api/auth/active",
+      {
+        method: "GET",
+        headers: sid ? { Authorization: `Bearer ${sid}` } : {},
+      },
+      6000
+    );
+  },
 };
 
 /* ---------------- Experiment endpoints ---------------- */
