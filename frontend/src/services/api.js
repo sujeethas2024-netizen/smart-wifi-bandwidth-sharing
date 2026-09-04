@@ -23,12 +23,12 @@ export async function apiFetch(path, options = {}, timeoutMs = 6000) {
 
   try {
     const res = await fetch(`${apiBase()}${path}`, {
+      ...options,
       headers: {
         "Content-Type": "application/json",
         ...(options.headers || {}),
       },
       signal: controller.signal,
-      ...options,
     });
     clearTimeout(timer);
     return await res.json();
