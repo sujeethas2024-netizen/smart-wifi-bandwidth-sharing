@@ -418,5 +418,39 @@ def public_live_session(session: dict):
     }
 
 
+def parse_iso(ts: str):
+    """Parse an ISO-8601 string written by datetime.utcnow().isoformat().
+    Returns None on malformed input."""
+    from datetime import datetime
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts)
+    except (TypeError, ValueError):
+        return None
+
+
+def live_session_status(session_row):
+    """Classify a session row as 'active', 'expired' or 'revoked'.
+
+    Pure helper that consults ONLY the row + the configured timeout.
+    Does not touch the database layer.
+    """
+    if not session_row:
+        return None
+    if session_row.get("status") == LIVE_SESSION_STATUS_REVOKED:
+        return LIVE_SESSION_STATUS_REVOKED
+    if session_row.get("status") != LIVE_SESSION_STATUS_ACTIVE:
+        return LIVE_SESSION_STATUS_REVOKED
+    last_seen = parse_iso(session_row.get("last_seen"))
+    if last_seen is None:
+        return "expired"
+    from datetime import datetime, timedelta
+    age = (datetime.utcnow() - last_seen).total_seconds()
+    if age > LIVE_SESSION_TIMEOUT_SECONDS:
+        return "expired"
+    return LIVE_SESSION_STATUS_ACTIVE
+
+
 # Initialize on import
 init_db()

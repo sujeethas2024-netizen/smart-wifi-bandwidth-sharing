@@ -1,20 +1,23 @@
 import { motion } from "framer-motion";
 import CountUp from "./CountUp";
+import { UNAVAILABLE } from "../data/provenance";
 import "../styles/components.css";
 
 /**
  * Semi-circular SVG gauge showing network health percentage.
  */
-export default function HealthGauge({ health = 0, label = "Excellent" }) {
+export default function HealthGauge({ health = 0, label = "Excellent", _meta }) {
   const R = 80;
   const CX = 110;
   const CY = 100;
   // Arc from 180° to 360° (semi circle)
   const circumference = Math.PI * R;
-  const offset = circumference * (1 - health / 100);
+  const unavailable = _meta && _meta.health_source === UNAVAILABLE;
+  const displayHealth = unavailable ? 0 : health;
+  const offset = circumference * (1 - displayHealth / 100);
 
   const color =
-    health >= 90 ? "#22c55e" : health >= 75 ? "#14b8a6" : health >= 65 ? "#f59e0b" : "#ef4444";
+    unavailable ? "#94a3b8" : health >= 90 ? "#22c55e" : health >= 75 ? "#14b8a6" : health >= 65 ? "#f59e0b" : "#ef4444";
 
   return (
     <div className="health-gauge glass glass-hover">
@@ -48,9 +51,13 @@ export default function HealthGauge({ health = 0, label = "Excellent" }) {
 
         <div className="gauge-center">
           <span className="gauge-value" style={{ color }}>
-            <CountUp value={health} suffix="%" />
+            {unavailable ? (
+              <span className="gauge-na">N/A</span>
+            ) : (
+              <CountUp value={health} suffix="%" />
+            )}
           </span>
-          <span className="gauge-label">{label}</span>
+          <span className="gauge-label">{unavailable ? "Unavailable" : label}</span>
         </div>
       </div>
 
@@ -58,7 +65,7 @@ export default function HealthGauge({ health = 0, label = "Excellent" }) {
         <span>Poor</span>
         <span>Fair</span>
         <span>Good</span>
-        <span style={{ color }}>Excellent</span>
+        <span style={{ color }}>{unavailable ? "—" : "Excellent"}</span>
       </div>
     </div>
   );

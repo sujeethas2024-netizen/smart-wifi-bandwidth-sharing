@@ -1,17 +1,18 @@
 import { useEffect, useState } from "react";
 import { networkApi } from "../services/api";
-import { SIMULATION, CALCULATED_FROM_REAL_DATA } from "../data/provenance";
+import { SIMULATION, CALCULATED_FROM_REAL_DATA, UNAVAILABLE } from "../data/provenance";
 
 export function useNetworkStats(pollMs = 2000) {
   const [stats, setStats] = useState({
-    bandwidth: 0,
-    latency: 0,
-    packetLoss: 0,
-    throughput: 0,
-    jitter: 0,
-    health: 0,
-    healthLabel: "Poor",
+    bandwidth: null,
+    latency: null,
+    packetLoss: null,
+    throughput: null,
+    jitter: null,
+    health: null,
+    healthLabel: "Unavailable",
     source: SIMULATION,
+    liveMode: false,
     _meta: {},
   });
   const [history, setHistory] = useState({ labels: [], values: [] });
@@ -24,15 +25,17 @@ export function useNetworkStats(pollMs = 2000) {
         const res = await networkApi.stats();
         if (!stop && res?.ok && res.stats) {
           const meta = res.stats._meta || {};
+          const safeNum = (v) => (v === null || v === undefined ? null : Number(v));
           setStats({
-            bandwidth: Number(res.stats.bandwidth ?? 0),
-            latency: Number(res.stats.latency ?? 0),
-            packetLoss: Number(res.stats.packetLoss ?? 0),
-            throughput: Number(res.stats.throughput ?? 0),
-            jitter: Number(res.stats.jitter ?? 0),
-            health: Number(res.stats.health ?? 0),
-            healthLabel: res.stats.healthLabel || "Poor",
+            bandwidth: safeNum(res.stats.bandwidth),
+            latency: safeNum(res.stats.latency),
+            packetLoss: safeNum(res.stats.packetLoss),
+            throughput: safeNum(res.stats.throughput),
+            jitter: safeNum(res.stats.jitter),
+            health: safeNum(res.stats.health),
+            healthLabel: res.stats.healthLabel || "Unavailable",
             source: res.source || SIMULATION,
+            liveMode: Boolean(res.live_mode),
             _meta: meta,
           });
           setLive(true);

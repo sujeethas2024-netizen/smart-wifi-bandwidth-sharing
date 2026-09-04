@@ -12,10 +12,10 @@ import ActiveUsersList from "../components/ActiveUsersList";
 import { BandwidthLine, ConsumptionBar, CategoryDoughnut } from "../components/Charts";
 import { useLiveUsers } from "../hooks/useLiveUsers";
 import { useNetworkStats } from "../hooks/useNetworkStats";
-import { fetchActiveUsers } from "../services/authService";
-import { networkApi } from "../services/api";
+import { fetchActiveUsers, getSessionId } from "../services/authService";
+import { networkApi, allocationApi } from "../services/api";
 import DataSourceLabel from "../components/DataSourceLabel";
-import { SIMULATION } from "../data/provenance";
+import { SIMULATION, REAL_RUNTIME_MEASUREMENT, CALCULATED_FROM_REAL_DATA, UNAVAILABLE } from "../data/provenance";
 import "../styles/pages.css";
 
 export default function Dashboard() {
@@ -25,6 +25,8 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [activeUsers, setActiveUsers] = useState([]);
   const [activeUsersError, setActiveUsersError] = useState("");
+  const [allocationResult, setAllocationResult] = useState(null);
+  const [allocationError, setAllocationError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -71,14 +73,22 @@ export default function Dashboard() {
 
   const statsComputed = useMemo(
     () => ({
-      connectedUsers: onlineUsers.length,
+      connectedUsers: activeUsers.length || onlineUsers.length,
       totalUsers: users.length,
       activeDevices: new Set(onlineUsers.map((u) => u.device)).size,
-      bandwidth: onlineUsers.reduce((s, u) => s + (u.usage || 0), 0),
+      // "Current Bandwidth" on this dashboard is the *observed*
+      // throughput, not the link capacity. We expose the value
+      // as `bandwidth` for the StatCards card to keep one fewer
+      // visual change, but the source of the value is
+      // CALCULATED_FROM_REAL_DATA in live mode.
+      bandwidth: stats.throughput,
+      bandwidthSource:
+        stats.liveMode ? CALCULATED_FROM_REAL_DATA : SIMULATION,
+      bandwidthUnavailable: stats.throughput === null,
       health: stats.health,
       healthLabel: stats.healthLabel,
     }),
-    [onlineUsers, users, stats.health, stats.healthLabel]
+    [onlineUsers, users, stats.health, stats.healthLabel, stats.throughput, stats.liveMode, activeUsers.length]
   );
 
   const perf = useMemo(
@@ -88,11 +98,64 @@ export default function Dashboard() {
       throughput: stats.throughput,
       jitter: stats.jitter,
       source: stats.source,
+      _meta: stats._meta,
     }),
-    [stats.latency, stats.packetLoss, stats.throughput, stats.jitter, stats.source]
+    [stats.latency, stats.packetLoss, stats.throughput, stats.jitter, stats.source, stats._meta]
   );
 
-  const handleAllocate = () => setAllocating(true);
+  const allocationByUserId = useMemo(() => {
+    if (!allocationResult?.users) return {};
+    const map = {};
+    for (const u of allocationResult.users) {
+      map[u.user_id] = u;
+    }
+    return map;
+  }, [allocationResult]);
+
+  const displayUsers = useMemo(() => {
+    return users.map((u) => {
+      const alloc = allocationByUserId[u.username];
+      if (alloc) {
+        return {
+          ...u,
+          allocated: alloc.allocated_bandwidth,
+          _allocated_bandwidth: alloc.allocated_bandwidth,
+          _utility: alloc.utility,
+        };
+      }
+      return u;
+    });
+  }, [users, allocationByUserId]);
+
+  const handleAllocate = async () => {
+    setAllocating(true);
+    setAllocationResult(null);
+    setAllocationError("");
+
+    // The live allocation is server-authoritative: the backend reads
+    // the live_sessions table and translates it into a Game Theory
+    // request. The frontend therefore sends no user list of its own.
+    const payload = {
+      total_bandwidth: 40,
+      use_live_users: true,
+    };
+
+    try {
+      const res = await allocationApi.allocate(payload);
+
+      if (res && res.status === "success" && res.result) {
+        setAllocationResult(res.result);
+      } else if (res && res.offline) {
+        setAllocationError("Backend not reachable. Allocation could not be completed.");
+      } else if (res && (res.status === "error" || res.status_code === 401)) {
+        setAllocationError(res.message || "Allocation failed.");
+      } else {
+        setAllocationError(res?.message || "Allocation failed.");
+      }
+    } catch (err) {
+      setAllocationError("Network error. Please try again.");
+    }
+  };
 
   if (loading) {
     return (
@@ -118,8 +181,11 @@ export default function Dashboard() {
       {/* Network mode indicator */}
       <div className="mode-indicator">
         <span className="mode-dot" />
-        Network Mode: <strong>RESEARCH SIMULATION</strong>
-        <DataSourceLabel source={SIMULATION} />
+        Network Mode:{" "}
+        <strong>
+          {stats.liveMode ? "LIVE MEASUREMENT" : "RESEARCH SIMULATION"}
+        </strong>
+        <DataSourceLabel source={stats.source} />
       </div>
 
       <Hero onStart={handleAllocate} />
@@ -153,10 +219,10 @@ export default function Dashboard() {
 
       {/* Table + gauge column */}
       <div className="grid-table-side">
-        <UserTable users={users} />
+        <UserTable users={displayUsers} />
 
         <div className="side-col">
-          <HealthGauge health={statsComputed.health} label={statsComputed.healthLabel} />
+          <HealthGauge health={statsComputed.health} label={statsComputed.healthLabel} _meta={stats._meta} />
           <AIRecommendations users={users} />
         </div>
       </div>
@@ -178,14 +244,40 @@ export default function Dashboard() {
             Recompute the Nash equilibrium and redistribute bandwidth fairly
             across all connected devices using the game theory engine.
           </p>
-          <button className="btn-gradient alloc-btn" onClick={handleAllocate}>
-            <FiRefreshCw /> Allocate Bandwidth
+          <button
+            className="btn-gradient alloc-btn"
+            onClick={handleAllocate}
+            disabled={allocating}
+          >
+            <FiRefreshCw /> {allocating ? "Allocating..." : "Allocate Bandwidth"}
           </button>
+          {allocationError && (
+            <div className="alloc-error">{allocationError}</div>
+          )}
           <div className="alloc-meta">
-            <div><strong>{statsComputed.connectedUsers}</strong><span>Online users</span></div>
-            <div><strong>{statsComputed.bandwidth.toFixed(1)}</strong><span>Mbps in use</span></div>
-            <div><strong>0.{statsComputed.health > 10 ? statsComputed.health : 90}</strong><span>Fairness index</span></div>
+            <div><strong>{allocationResult ? allocationResult.number_of_users : statsComputed.connectedUsers}</strong><span>Online users</span></div>
+            <div>
+              <strong>
+                {allocationResult
+                  ? allocationResult.total_allocated_bandwidth.toFixed(1)
+                  : (statsComputed.bandwidth === null || statsComputed.bandwidth === undefined
+                      ? "N/A"
+                      : statsComputed.bandwidth.toFixed(1))}
+              </strong>
+              <span>Mbps allocated</span>
+            </div>
+            <div><strong>{allocationResult ? allocationResult.utilization_percentage + "%" : "—"}</strong><span>Utilization</span></div>
+            <div>
+              <strong>{allocationResult ? allocationResult.jain_fairness_index.toFixed(4) : "—"}</strong>
+              <span>{allocationResult ? `Fairness (${allocationResult.fairness_status})` : "Fairness index"}</span>
+            </div>
           </div>
+          {allocationResult && allocationResult.live_source && (
+            <div className="alloc-source text-dim">
+              Source: live_sessions ({allocationResult.live_source.unique_user_count} unique users,
+              {" "}timeout {allocationResult.live_source.timeout_seconds}s)
+            </div>
+          )}
         </div>
       </div>
 
@@ -196,7 +288,13 @@ export default function Dashboard() {
         loading={activeUsers.length === 0 && !activeUsersError}
       />
 
-      <AllocationAnimation open={allocating} onComplete={() => setAllocating(false)} />
+      <AllocationAnimation
+        open={allocating}
+        error={allocationError}
+        onComplete={() => {
+          setAllocating(false);
+        }}
+      />
     </motion.div>
   );
 }

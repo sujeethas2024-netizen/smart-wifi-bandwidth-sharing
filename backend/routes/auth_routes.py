@@ -21,6 +21,8 @@ from backend.database.accounts_db import (
     revoke_live_session,
     list_active_sessions,
     public_live_session,
+    parse_iso,
+    live_session_status,
     LIVE_SESSION_STATUS_ACTIVE,
     LIVE_SESSION_STATUS_REVOKED,
     LIVE_SESSION_TIMEOUT_SECONDS,
@@ -135,39 +137,9 @@ def _extract_bearer_token():
     return token or None
 
 
-def _parse_iso(ts: str):
-    """Parse an ISO-8601 string written by datetime.utcnow().isoformat().
-    Returns None on malformed input."""
-    from datetime import datetime
-    if not ts:
-        return None
-    try:
-        # Python's fromisoformat handles the 'T' separator and fractional seconds.
-        return datetime.fromisoformat(ts)
-    except (TypeError, ValueError):
-        return None
-
-
-def live_session_status(session_row):
-    """Classify a session row as 'active', 'expired' or 'revoked'.
-
-    Pure helper that consults ONLY the row + the configured timeout.
-    Does not touch the database layer.
-    """
-    if not session_row:
-        return None
-    if session_row.get("status") == LIVE_SESSION_STATUS_REVOKED:
-        return LIVE_SESSION_STATUS_REVOKED
-    if session_row.get("status") != LIVE_SESSION_STATUS_ACTIVE:
-        return LIVE_SESSION_STATUS_REVOKED
-    last_seen = _parse_iso(session_row.get("last_seen"))
-    if last_seen is None:
-        return "expired"
-    from datetime import datetime, timedelta
-    age = (datetime.utcnow() - last_seen).total_seconds()
-    if age > LIVE_SESSION_TIMEOUT_SECONDS:
-        return "expired"
-    return LIVE_SESSION_STATUS_ACTIVE
+# `parse_iso` and `live_session_status` are now provided by the
+# database layer so other modules (e.g. the bandwidth router) can
+# reuse the same logic.
 
 
 @auth_bp.route("/heartbeat", methods=["POST"])

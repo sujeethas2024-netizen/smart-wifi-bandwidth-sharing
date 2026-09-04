@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { FiCheckCircle, FiCpu, FiZap } from "react-icons/fi";
+import { FiCheckCircle, FiCpu, FiZap, FiXCircle } from "react-icons/fi";
 import "../styles/components.css";
 
 const STAGES = [
@@ -13,16 +13,25 @@ const STAGES = [
  * Full-screen animated allocation sequence:
  *   Calculating… ████████░░ → Applying Game Theory… → Completed ✔
  */
-export default function AllocationAnimation({ open, onComplete }) {
+export default function AllocationAnimation({ open, error, onComplete }) {
   const [stage, setStage] = useState(0);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     if (!open) {
       setStage(0);
       setProgress(0);
       setDone(false);
+      setFailed(false);
+      return;
+    }
+
+    if (error) {
+      setDone(true);
+      setFailed(true);
+      setTimeout(() => !cancelled && onComplete?.(), 2000);
       return;
     }
 
@@ -42,7 +51,6 @@ export default function AllocationAnimation({ open, onComplete }) {
       const tick = (now) => {
         if (cancelled) return;
         const t = Math.min(1, (now - start) / dur);
-        // overall progress across all stages
         const overall =
           ((stageIdx + t) / STAGES.length) * 100;
         setProgress(Math.round(overall));
@@ -59,7 +67,7 @@ export default function AllocationAnimation({ open, onComplete }) {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, error]);
 
   return (
     <AnimatePresence>
@@ -107,6 +115,24 @@ export default function AllocationAnimation({ open, onComplete }) {
                 </div>
                 <p className="alloc-pct mono">{progress}%</p>
               </>
+             ) : failed ? (
+              <motion.div
+                className="alloc-done"
+                initial={{ scale: 0.6, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 300, damping: 15 }}
+              >
+                <motion.span
+                  className="done-icon"
+                  initial={{ rotate: -30 }}
+                  animate={{ rotate: 0 }}
+                  style={{ color: "#ef4444" }}
+                >
+                  <FiXCircle />
+                </motion.span>
+                <h3>Allocation Failed</h3>
+                <p>{error}</p>
+              </motion.div>
             ) : (
               <motion.div
                 className="alloc-done"

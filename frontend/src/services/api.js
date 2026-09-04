@@ -119,3 +119,29 @@ export const networkApi = {
   stats: () => apiFetch("/api/network/stats"),
   users: () => apiFetch("/api/network/users"),
 };
+
+/* ---------------- Allocation API ---------------- */
+function readSessionId() {
+  try {
+    const raw = sessionStorage.getItem("swbs-session");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && parsed.sessionId) {
+      return parsed.sessionId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export const allocationApi = {
+  allocate: (payload) => {
+    const sid = readSessionId();
+    return apiFetch("/api/allocate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: sid ? { Authorization: `Bearer ${sid}` } : {},
+    });
+  },
+};

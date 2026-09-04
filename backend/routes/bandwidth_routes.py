@@ -3,6 +3,7 @@ import pandas as pd
 import os
 
 from backend.services.allocation_service import allocate_bandwidth
+from backend.services.live_allocation_service import build_live_allocation_request
 from backend.simulation.experiment_runner import run_experiment_json, get_experiment_config
 from backend.data_provenance import SIMULATION, CALCULATED_FROM_REAL_DATA
 from backend.experiments.config_schema import ExperimentConfig
@@ -10,6 +11,12 @@ from backend.experiments.runner import run_multi_seed_experiment
 from backend.experiments.ablation import run_ablation
 from backend.experiments.sensitivity import run_sensitivity_analysis
 from backend.experiments.report import generate_report
+
+from backend.database.accounts_db import (
+    get_live_session,
+    live_session_status,
+    LIVE_SESSION_STATUS_ACTIVE,
+)
 
 
 # ============================================================
@@ -50,6 +57,27 @@ def allocate():
 
     try:
 
+        # ---- Authentication: require a valid live session ----
+        auth_header = request.headers.get("Authorization", "")
+        parts = auth_header.split(" ", 1)
+        if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1].strip():
+            return jsonify({
+                "status": "error",
+                "message": "Missing or malformed Authorization header.",
+            }), 401
+        session_id = parts[1].strip()
+        session_row = get_live_session(session_id)
+        if not session_row:
+            return jsonify({
+                "status": "error",
+                "message": "Invalid session.",
+            }), 401
+        if live_session_status(session_row) != LIVE_SESSION_STATUS_ACTIVE:
+            return jsonify({
+                "status": "error",
+                "message": "Session is not active.",
+            }), 401
+
         data = request.get_json(
             silent=True
         )
@@ -61,6 +89,24 @@ def allocate():
                 "message": "Request body is empty"
             }), 400
 
+
+        # If the caller asks for a LIVE allocation, derive the user list
+        # from the server-authoritative active-session table so the
+        # backend never trusts a client-supplied user population.
+        use_live_users = bool(data.get("use_live_users"))
+        if use_live_users:
+            live_users, live_meta = build_live_allocation_request(
+                total_bandwidth=float(data.get("total_bandwidth", 40.0)),
+            )
+            if not live_users:
+                return jsonify({
+                    "status": "error",
+                    "message": "No active live users to allocate to.",
+                    "source": "live_sessions",
+                }), 400
+            data = dict(data)
+            data["users"] = live_users
+            data["_live_source"] = live_meta
 
         total_bandwidth = float(
             data.get(
@@ -295,6 +341,8 @@ def allocate():
 
             "number_of_users":
                 len(users),
+
+            "live_source": data.get("_live_source"),
 
             "result":
                 result
