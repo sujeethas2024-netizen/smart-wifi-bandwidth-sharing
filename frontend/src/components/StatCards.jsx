@@ -14,7 +14,7 @@ const CARDS = [
   },
   {
     key: "devices",
-    label: "Active Devices",
+    label: "Active Profiles",
     icon: <FiMonitor />,
     color: "#7c3aed",
     suffix: "",

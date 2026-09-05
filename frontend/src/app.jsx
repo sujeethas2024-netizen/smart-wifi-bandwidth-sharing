@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -17,7 +17,7 @@ import Sidebar from "./components/Sidebar";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 
-import { getCurrentUser } from "./services/authService";
+import { getCurrentUser, startHeartbeat } from "./services/authService";
 
 import "./styles/layout.css";
 import "./styles/components.css";
@@ -104,6 +104,10 @@ function DashboardLayout() {
 }
 
 function App() {
+  useEffect(() => {
+    startHeartbeat();
+  }, []);
+
   return (
     <Routes>
       <Route path="/" element={<Login />} />

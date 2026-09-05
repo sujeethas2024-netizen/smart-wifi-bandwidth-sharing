@@ -66,21 +66,18 @@ export default function Dashboard() {
     return () => clearTimeout(t);
   }, []);
 
-  const onlineUsers = useMemo(
-    () => users.filter((u) => u.status === "online" || u.status === "idle"),
-    [users]
+  const activeUsernames = useMemo(
+    () => new Set(activeUsers.map((u) => u.username)),
+    [activeUsers]
   );
 
   const statsComputed = useMemo(
     () => ({
-      connectedUsers: activeUsers.length || onlineUsers.length,
+      connectedUsers: activeUsers.length,
       totalUsers: users.length,
-      activeDevices: new Set(onlineUsers.map((u) => u.device)).size,
-      // "Current Bandwidth" on this dashboard is the *observed*
-      // throughput, not the link capacity. We expose the value
-      // as `bandwidth` for the StatCards card to keep one fewer
-      // visual change, but the source of the value is
-      // CALCULATED_FROM_REAL_DATA in live mode.
+      activeDevices: new Set(
+        users.filter((u) => activeUsernames.has(u.username)).map((u) => u.device)
+      ).size,
       bandwidth: stats.throughput,
       bandwidthSource:
         stats.liveMode ? CALCULATED_FROM_REAL_DATA : SIMULATION,
@@ -88,7 +85,7 @@ export default function Dashboard() {
       health: stats.health,
       healthLabel: stats.healthLabel,
     }),
-    [onlineUsers, users, stats.health, stats.healthLabel, stats.throughput, stats.liveMode, activeUsers.length]
+    [activeUsernames, users, stats.health, stats.healthLabel, stats.throughput, stats.liveMode, activeUsers.length]
   );
 
   const perf = useMemo(
@@ -115,17 +112,22 @@ export default function Dashboard() {
   const displayUsers = useMemo(() => {
     return users.map((u) => {
       const alloc = allocationByUserId[u.username];
+      const isActive = activeUsernames.has(u.username);
+      const base = {
+        ...u,
+        status: isActive ? "online" : "offline",
+      };
       if (alloc) {
         return {
-          ...u,
+          ...base,
           allocated: alloc.allocated_bandwidth,
           _allocated_bandwidth: alloc.allocated_bandwidth,
           _utility: alloc.utility,
         };
       }
-      return u;
+      return base;
     });
-  }, [users, allocationByUserId]);
+  }, [users, allocationByUserId, activeUsernames]);
 
   const handleAllocate = async () => {
     setAllocating(true);
@@ -219,7 +221,12 @@ export default function Dashboard() {
 
       {/* Table + gauge column */}
       <div className="grid-table-side">
-        <UserTable users={displayUsers} />
+        <div>
+          <UserTable users={displayUsers} />
+          <p className="text-dim" style={{ fontSize: 12, marginTop: 4 }}>
+            Device characteristics are simulated because router/AP telemetry is not available.
+          </p>
+        </div>
 
         <div className="side-col">
           <HealthGauge health={statsComputed.health} label={statsComputed.healthLabel} _meta={stats._meta} />

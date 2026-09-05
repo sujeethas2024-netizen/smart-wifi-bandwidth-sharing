@@ -6,7 +6,7 @@ import CountUp from "../components/CountUp";
 import { BandwidthLine } from "../components/Charts";
 import { useLiveUsers } from "../hooks/useLiveUsers";
 import { useNetworkStats } from "../hooks/useNetworkStats";
-import { getCurrentUser } from "../services/authService";
+import { getCurrentUser, fetchActiveUsers } from "../services/authService";
 import "../styles/pages.css";
 
 /* Personal quota ring */
@@ -43,28 +43,70 @@ export default function UserDashboard() {
   const { users } = useLiveUsers();
   const { stats, history } = useNetworkStats();
   const [loading, setLoading] = useState(true);
+  const [activeUsers, setActiveUsers] = useState([]);
+  const [activeUsersError, setActiveUsersError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    let intervalId = null;
+
+    async function fetchAndPoll() {
+      const res = await fetchActiveUsers();
+      if (!mounted) return;
+
+      if (res.unauthorized) {
+        clearInterval(intervalId);
+        setActiveUsers([]);
+        setActiveUsersError("Session expired. Please log in again.");
+        return;
+      }
+
+      if (res.ok) {
+        setActiveUsers(res.users || []);
+        setActiveUsersError("");
+      } else if (res.offline) {
+        setActiveUsersError(res.error || "Live user data unavailable");
+      }
+    }
+
+    fetchAndPoll();
+    intervalId = setInterval(fetchAndPoll, 10000);
+
+    return () => {
+      mounted = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 700);
     return () => clearTimeout(t);
   }, []);
 
+  const activeUsernames = useMemo(
+    () => new Set(activeUsers.map((u) => u.username)),
+    [activeUsers]
+  );
+
   // My personal slice of the network (deterministic per username)
   const myDevices = useMemo(() => {
     const seed = (user?.username || "user").length;
-    return users.slice(seed % 5, (seed % 5) + 3);
-  }, [users, user]);
+    return users.slice(seed % 5, (seed % 5) + 3).map((u) => ({
+      ...u,
+      status: activeUsernames.has(u.username) ? "online" : "offline",
+    }));
+  }, [users, user, activeUsernames]);
 
   const myTotal = useMemo(() => myDevices.reduce((s, d) => s + (d.allocated || 0), 0), [myDevices]);
   const myUsed = useMemo(() => myDevices.reduce((s, d) => s + (d.usage || 0), 0), [myDevices]);
 
   const netStats = useMemo(() => ({
-    connectedUsers: users.filter((u) => u.status === "online").length,
+    connectedUsers: activeUsers.length,
     totalUsers: users.length,
     bandwidth: users.filter((u) => u.status === "online").reduce((s, u) => s + (u.usage || 0), 0),
     health: stats.health,
     healthLabel: stats.healthLabel,
-  }), [users, stats.health, stats.healthLabel]);
+  }), [activeUsers, users, stats.health, stats.healthLabel]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -161,6 +203,9 @@ export default function UserDashboard() {
       {/* My devices */}
       <div className="chart-card glass">
         <h3 className="section-title"><span className="dot" /> My Devices</h3>
+        <p className="text-dim" style={{ fontSize: 12, marginTop: -8, marginBottom: 8 }}>
+          Device characteristics are simulated because router/AP telemetry is not available.
+        </p>
         <div className="device-grid">
           {myDevices.map((d, i) => (
             <motion.div
@@ -202,6 +247,9 @@ export default function UserDashboard() {
           <div><strong>{stats.packetLoss}%</strong><span>Packet loss</span></div>
           <div><strong style={{ color: "#22c55e" }}>{netStats.healthLabel}</strong><span>Health</span></div>
         </div>
+        {activeUsersError && (
+          <p className="text-dim" style={{ marginTop: 8 }}>{activeUsersError}</p>
+        )}
       </div>
 
       {/* Info banner */}
