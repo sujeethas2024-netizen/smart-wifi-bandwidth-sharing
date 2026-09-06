@@ -2,9 +2,9 @@ import { motion } from "framer-motion";
 import { FiWifi, FiPlay } from "react-icons/fi";
 
 const FEATURES = [
-  { icon: "🤖", text: "AI Powered Allocation" },
+  { icon: "🤖", text: "Game Theory Allocation" },
   { icon: "⚖️", text: "Fair Bandwidth Distribution" },
-  { icon: "📡", text: "Real-Time Monitoring" },
+  { icon: "📡", text: "Local Network Monitoring" },
 ];
 
 const FLOATERS = [
@@ -69,8 +69,8 @@ export default function Hero({ onStart }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45, duration: 0.6 }}
         >
-          Enterprise-grade network intelligence — allocate every megabit fairly,
-          monitor in real time, and keep every user happy.
+          Enterprise-grade network intelligence — allocate bandwidth through
+          Nash equilibrium, monitor network performance, and keep every user happy.
         </motion.p>
 
         <motion.ul
@@ -100,7 +100,7 @@ export default function Hero({ onStart }) {
           </button>
           <span className="hero-live">
             <span className="pulse-dot" style={{ background: "#22c55e" }} />
-            Live network feed active
+            Network monitoring ready
           </span>
         </motion.div>
       </div>

@@ -8,14 +8,15 @@ dist/
 
 # Runtime artifacts
 server.log
+qr_code.png
 
-# Node / Vite
-node_modules/
-dist/
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
 
-# Frontend environment variables
-.env.local
-.env.*.local
+# Local runtime database
+database/accounts.db
 
 # Other local repositories
 sujeetha16.github.io/

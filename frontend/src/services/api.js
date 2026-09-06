@@ -73,7 +73,7 @@ export const authApi = {
       sid = null;
     }
     return apiFetch(
-      "/api/auth/active",
+      "/api/auth/active-users",
       {
         method: "GET",
         headers: sid ? { Authorization: `Bearer ${sid}` } : {},
