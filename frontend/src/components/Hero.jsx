@@ -16,7 +16,14 @@ const FLOATERS = [
   { icon: <FiWifi />, top: "55%", left: "4%", size: 18, delay: 0.9 },
 ];
 
-export default function Hero({ onStart }) {
+export default function Hero({ onStart, mode = "research" }) {
+  const isLive = mode === "live";
+  const subtitle = isLive
+    ? "Live system dashboard — monitor authenticated users, real bandwidth requests, and Nash equilibrium allocations."
+    : "Research simulation — explore controlled experiments, fairness metrics, and Game Theory outcomes across scalable user populations.";
+
+  const liveLabel = isLive ? "Live system active" : "Research simulation ready";
+
   return (
     <motion.section
       className="hero glass"
@@ -69,8 +76,7 @@ export default function Hero({ onStart }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45, duration: 0.6 }}
         >
-          Enterprise-grade network intelligence — allocate bandwidth through
-          Nash equilibrium, monitor network performance, and keep every user happy.
+          {subtitle}
         </motion.p>
 
         <motion.ul
@@ -96,11 +102,11 @@ export default function Hero({ onStart }) {
           transition={{ delay: 0.9 }}
         >
           <button className="btn-gradient hero-btn" onClick={onStart}>
-            <FiPlay /> Start Monitoring
+            <FiPlay /> {isLive ? "Run Allocation" : "Start Simulation"}
           </button>
           <span className="hero-live">
-            <span className="pulse-dot" style={{ background: "#22c55e" }} />
-            Network monitoring ready
+            <span className="pulse-dot" style={{ background: isLive ? "#22c55e" : "#f59e0b" }} />
+            {liveLabel}
           </span>
         </motion.div>
       </div>

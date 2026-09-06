@@ -103,10 +103,12 @@ export default function UserDashboard() {
   const netStats = useMemo(() => ({
     connectedUsers: activeUsers.length,
     totalUsers: users.length,
-    bandwidth: users.filter((u) => u.status === "online").reduce((s, u) => s + (u.usage || 0), 0),
+    bandwidth: stats.throughput,
     health: stats.health,
     healthLabel: stats.healthLabel,
-  }), [activeUsers, users, stats.health, stats.healthLabel]);
+    latency: stats.latency,
+    packetLoss: stats.packetLoss,
+  }), [activeUsers, users, stats.health, stats.healthLabel, stats.throughput, stats.latency, stats.packetLoss]);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
@@ -154,10 +156,10 @@ export default function UserDashboard() {
       {/* Personal KPIs */}
       <div className="stat-grid">
         {[
-          { label: "My Allocation", value: myTotal, suffix: " Mbps", color: "#2563eb", icon: <FiZap /> },
-          { label: "Used Now", value: myUsed, suffix: " Mbps", color: "#14b8a6", icon: <FiActivity /> },
-          { label: "Remaining", value: Math.max(0, myTotal - myUsed), suffix: " Mbps", color: "#7c3aed", icon: <FiWifi /> },
-          { label: "Network Health", value: netStats.health, suffix: "%", color: "#22c55e", icon: <FiShield /> },
+          { label: "My Allocation", value: myTotal, suffix: " Mbps", color: "#2563eb", icon: <FiZap />, simulated: true },
+          { label: "Used Now", value: myUsed, suffix: " Mbps", color: "#14b8a6", icon: <FiActivity />, simulated: true },
+          { label: "Remaining", value: Math.max(0, myTotal - myUsed), suffix: " Mbps", color: "#7c3aed", icon: <FiWifi />, simulated: true },
+          { label: "Network Health", value: netStats.health, suffix: "%", color: "#22c55e", icon: <FiShield />, simulated: false },
         ].map((c, i) => (
           <motion.div
             key={c.label}
@@ -170,8 +172,17 @@ export default function UserDashboard() {
             <div className="stat-info">
               <span className="stat-label">{c.label}</span>
               <span className="stat-value" style={{ color: c.color }}>
-                <CountUp value={c.value} suffix={c.suffix} />
+                {c.simulated && (c.value === undefined || c.value === null || c.value === 0) ? (
+                  <span className="stat-na">N/A</span>
+                ) : (
+                  <CountUp value={c.value} suffix={c.suffix} />
+                )}
               </span>
+              {c.simulated && (
+                <span className="text-dim" style={{ fontSize: 10, display: 'block', marginTop: 2 }}>
+                  Simulated profile
+                </span>
+              )}
             </div>
           </motion.div>
         ))}
@@ -242,10 +253,38 @@ export default function UserDashboard() {
         <h3 className="section-title"><span className="dot" /> Network Status (read-only)</h3>
         <div className="netstatus-row">
           <div><strong>{netStats.connectedUsers}</strong><span>Users online</span></div>
-          <div><strong>{netStats.bandwidth.toFixed(1)} Mbps</strong><span>Total in use</span></div>
-          <div><strong>{stats.latency} ms</strong><span>Latency</span></div>
-          <div><strong>{stats.packetLoss}%</strong><span>Packet loss</span></div>
-          <div><strong style={{ color: "#22c55e" }}>{netStats.healthLabel}</strong><span>Health</span></div>
+          <div>
+            <strong>
+              {netStats.bandwidth === null || netStats.bandwidth === undefined
+                ? "N/A"
+                : `${netStats.bandwidth.toFixed(1)} Mbps`}
+            </strong>
+            <span>Host throughput</span>
+          </div>
+          <div>
+            <strong>
+              {netStats.latency === null || netStats.latency === undefined
+                ? "N/A"
+                : `${netStats.latency} ms`}
+            </strong>
+            <span>Latency</span>
+          </div>
+          <div>
+            <strong>
+              {netStats.packetLoss === null || netStats.packetLoss === undefined
+                ? "N/A"
+                : `${netStats.packetLoss}%`}
+            </strong>
+            <span>Packet loss</span>
+          </div>
+          <div>
+            <strong style={{ color: "#22c55e" }}>
+              {netStats.health === null || netStats.health === undefined
+                ? "N/A"
+                : netStats.healthLabel}
+            </strong>
+            <span>Health</span>
+          </div>
         </div>
         {activeUsersError && (
           <p className="text-dim" style={{ marginTop: 8 }}>{activeUsersError}</p>

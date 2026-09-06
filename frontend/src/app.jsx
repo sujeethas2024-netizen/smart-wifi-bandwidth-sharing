@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { AnimatePresence, motion } from "framer-motion";
+import { motion } from "framer-motion";
 
 import Login from "./pages/login";
 import Dashboard from "./pages/Dashboard";           // Admin dashboard
@@ -63,41 +63,38 @@ function DashboardLayout() {
       <div className="app-main">
         <Navbar onMenuClick={() => setMenuOpen((o) => !o)} />
 
-        <AnimatePresence mode="wait">
-          <motion.main
-            key={location.pathname}
-            className="app-content"
-            initial={{ opacity: 0, y: 18 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-          >
-            <Routes location={location}>
-              {/* Role-aware home */}
-              <Route
-                path="/dashboard"
-                element={isAdmin ? <Dashboard /> : <UserDashboard />}
-              />
+        <motion.main
+          key={location.pathname}
+          className="app-content"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3, ease: "easeOut" }}
+        >
+          <Routes location={location}>
+            {/* Role-aware home */}
+            <Route
+              path="/dashboard"
+              element={isAdmin ? <Dashboard /> : <UserDashboard />}
+            />
 
-              {/* Admin-only pages */}
-              <Route path="/users" element={<AdminOnly><Users /></AdminOnly>} />
-              <Route path="/analytics" element={<AdminOnly><Analytics /></AdminOnly>} />
-              <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
-              <Route path="/settings" element={<AdminOnly><Settings /></AdminOnly>} />
-              <Route path="/research" element={<AdminOnly><ResearchExperiment /></AdminOnly>} />
+            {/* Admin-only pages */}
+            <Route path="/users" element={<AdminOnly><Users /></AdminOnly>} />
+            <Route path="/analytics" element={<AdminOnly><Analytics /></AdminOnly>} />
+            <Route path="/reports" element={<AdminOnly><Reports /></AdminOnly>} />
+            <Route path="/settings" element={<AdminOnly><Settings /></AdminOnly>} />
+            <Route path="/research" element={<AdminOnly><ResearchExperiment /></AdminOnly>} />
 
-              {/* User-only page */}
-              <Route path="/my-usage" element={<UserOnly><MyUsage /></UserOnly>} />
+            {/* User-only page */}
+            <Route path="/my-usage" element={<UserOnly><MyUsage /></UserOnly>} />
 
-              {/* Shared (read-only for users) */}
-              <Route path="/network" element={<Network />} />
+            {/* Shared (read-only for users) */}
+            <Route path="/network" element={<Network />} />
 
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
 
-            <Footer />
-          </motion.main>
-        </AnimatePresence>
+          <Footer />
+        </motion.main>
       </div>
     </div>
   );

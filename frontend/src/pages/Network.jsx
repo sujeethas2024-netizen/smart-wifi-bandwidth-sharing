@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import NetworkTopology from "../components/NetworkTopology";
 import CoverageMap from "../components/CoverageMap";
 import { useLiveUsers } from "../hooks/useLiveUsers";
+import { fetchActiveUsers } from "../services/authService";
 import "../styles/pages.css";
 
 function SignalRow({ user }) {
@@ -44,10 +45,44 @@ const ROOM_ICONS = {
 
 export default function Network() {
   const { users } = useLiveUsers();
+  const [activeUsernames, setActiveUsernames] = useState(() => new Set());
+  const [activeError, setActiveError] = useState("");
+
+  useEffect(() => {
+    let mounted = true;
+    let intervalId = null;
+    async function fetchAndPoll() {
+      try {
+        const res = await fetchActiveUsers();
+        if (!mounted) return;
+        if (res.ok && Array.isArray(res.users)) {
+          setActiveUsernames(new Set(res.users.map((u) => u.username)));
+          setActiveError("");
+        } else if (res.offline) {
+          setActiveError(res.error || "Active user data unavailable");
+        }
+      } catch {
+        // keep last known data when backend is unreachable
+      }
+    }
+    fetchAndPoll();
+    intervalId = setInterval(fetchAndPoll, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(intervalId);
+    };
+  }, []);
+
+  const syncedUsers = useMemo(() => {
+    return users.map((u) => ({
+      ...u,
+      status: activeUsernames.has(u.username) ? "online" : "offline",
+    }));
+  }, [users, activeUsernames]);
 
   const rooms = useMemo(() => {
     const map = {};
-    users.forEach((u) => {
+    syncedUsers.forEach((u) => {
       const room = u.room || "Other";
       if (!map[room]) {
         map[room] = { name: room, icon: ROOM_ICONS[room] || "📡", strength: 0, signals: [], devices: 0 };
@@ -64,7 +99,7 @@ export default function Network() {
       strength: r.signals.length ? Math.round(r.signals.reduce((a, b) => a + b, 0) / r.signals.length) : 50,
       devices: r.devices,
     }));
-  }, [users]);
+  }, [syncedUsers]);
 
   return (
     <motion.div
@@ -80,17 +115,23 @@ export default function Network() {
         </div>
       </div>
 
-      <NetworkTopology users={users} />
+      <NetworkTopology users={syncedUsers} />
 
       <CoverageMap rooms={rooms} />
 
       <div className="chart-card glass">
         <h3 className="section-title"><span className="dot" /> Live Signal Strength</h3>
+        {activeError && (
+          <p className="text-dim" style={{ marginBottom: 8, fontSize: 12 }}>{activeError}</p>
+        )}
         <div className="signal-list">
-          {users.filter((u) => u.status !== "offline").slice(0, 8).map((u) => (
+          {syncedUsers.filter((u) => u.status !== "offline").slice(0, 8).map((u) => (
             <SignalRow key={u.id} user={u} />
           ))}
         </div>
+        <p className="text-dim" style={{ marginTop: 10, fontSize: 11 }}>
+          Online status: authenticated application sessions. Device details are simulated.
+        </p>
       </div>
     </motion.div>
   );

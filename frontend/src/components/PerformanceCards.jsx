@@ -1,25 +1,43 @@
 import { motion } from "framer-motion";
 import { FiClock, FiAlertTriangle, FiTrendingUp, FiShuffle } from "react-icons/fi";
 import CountUp from "./CountUp";
-import { UNAVAILABLE } from "../data/provenance";
+import DataSourceLabel from "./DataSourceLabel";
+import { CALCULATED_FROM_REAL_DATA, REAL_RUNTIME_MEASUREMENT, UNAVAILABLE } from "../data/provenance";
 import "../styles/components.css";
 
-const CARDS = [
-  { key: "latency", label: "Latency", icon: <FiClock />, unit: " ms", color: "#2563eb", decimals: 0 },
-  { key: "packetLoss", label: "Packet Loss", icon: <FiAlertTriangle />, unit: "%", color: "#ef4444", decimals: 2 },
-  { key: "throughput", label: "Throughput", icon: <FiTrendingUp />, unit: " Mbps", color: "#22c55e", decimals: 0 },
-  { key: "jitter", label: "Jitter", icon: <FiShuffle />, unit: " ms", color: "#7c3aed", decimals: 0 },
-];
+function defaultCards() {
+  return [
+    { key: "latency", label: "Latency", icon: <FiClock />, unit: " ms", color: "#2563eb", decimals: 0 },
+    { key: "packetLoss", label: "Packet Loss", icon: <FiAlertTriangle />, unit: "%", color: "#ef4444", decimals: 2 },
+    { key: "throughput", label: "Throughput", icon: <FiTrendingUp />, unit: " Mbps", color: "#22c55e", decimals: 0 },
+    { key: "jitter", label: "Jitter", icon: <FiShuffle />, unit: " ms", color: "#7c3aed", decimals: 0 },
+  ];
+}
 
 function isUnavailable(meta, key) {
   return meta && meta[`${key}_source`] === UNAVAILABLE;
 }
 
 export default function PerformanceCards({ perf }) {
+  const liveMode = Boolean(perf._meta && perf._meta._live);
+  const cards = defaultCards();
+  // In LIVE mode, latency is a runtime measurement. Rename the card
+  // so the user knows where the value came from.
+  if (liveMode) {
+    cards[0].label = "Runtime Latency";
+  }
   return (
     <div className="perf-grid">
-      {CARDS.map((c, i) => {
+      {cards.map((c, i) => {
         const unavailable = isUnavailable(perf._meta, c.key);
+        const sourceLabel =
+          c.key === "latency" && !unavailable
+            ? liveMode
+              ? REAL_RUNTIME_MEASUREMENT
+              : (perf._meta && perf._meta.latency_source) || null
+            : c.key === "jitter" && !unavailable
+            ? (perf._meta && perf._meta.jitter_source) || CALCULATED_FROM_REAL_DATA
+            : null;
         return (
           <motion.div
             key={c.key}
@@ -32,6 +50,11 @@ export default function PerformanceCards({ perf }) {
               {c.icon}
             </div>
             <span className="perf-label">{c.label}</span>
+            {sourceLabel && (
+              <span style={{ marginLeft: 8 }}>
+                <DataSourceLabel source={sourceLabel} />
+              </span>
+            )}
             <span className="perf-value" style={{ color: c.color }}>
               {unavailable ? (
                 <span className="perf-na">N/A</span>

@@ -116,9 +116,20 @@ class TestServiceMeasureAll:
 class TestJitterDerivation:
     def test_jitter_unavailable_without_samples(self):
         svc = NetworkMeasurementService()
-        result = svc.measure_all()
+        with patch.object(svc._latency, "_try_icmp_ping", return_value=None):
+            with patch.object(svc._latency, "_try_tcp_timing", return_value=None):
+                result = svc.measure_all()
         assert result["jitter"]["classification"] == UNAVAILABLE
         assert result["jitter"]["value"] is None
+
+    def test_jitter_calculated_when_two_samples_available(self):
+        svc = NetworkMeasurementService()
+        with patch.object(svc._latency, "_try_icmp_ping", return_value=10.0):
+            with patch.object(svc._latency, "_try_tcp_timing", return_value=None):
+                result = svc.measure_all()
+        assert result["jitter"]["classification"] == CALCULATED_FROM_REAL_DATA
+        assert result["jitter"]["value"] is not None
+        assert result["jitter"]["value"] == 0.0
 
     def test_jitter_derived_from_latency_samples(self):
         adapter = LocalLatencyAdapter()
@@ -319,6 +330,13 @@ class TestProvenanceClassification:
                 assert second[key]["is_stale"] is True
                 assert second[key]["value"] is None
                 assert second[key]["classification"] == UNAVAILABLE
+
+    def test_age_seconds_never_negative(self):
+        svc = NetworkMeasurementService()
+        result = svc.measure_all()
+        for key, data in result.items():
+            if data["age_seconds"] is not None:
+                assert data["age_seconds"] >= 0
 
 
 import subprocess

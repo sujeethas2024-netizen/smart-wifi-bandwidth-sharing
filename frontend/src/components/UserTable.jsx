@@ -147,6 +147,10 @@ export default function UserTable({ users }) {
         </table>
       </div>
 
+      <p className="text-dim" style={{ fontSize: 11, marginTop: 8 }}>
+        Device properties are simulated · Application session status is real
+      </p>
+
       {/* Pagination */}
       <div className="pagination">
         <button

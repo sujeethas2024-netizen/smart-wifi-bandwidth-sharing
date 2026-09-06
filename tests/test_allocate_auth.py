@@ -132,7 +132,7 @@ class TestAllocateAuthentication:
         sid = _active_session(adb)
         res = flask_client.post(
             "/api/allocate",
-            json={"total_bandwidth": 40.0, "use_live_users": True},
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": 5.0}},
             headers={"Authorization": f"Bearer {sid}"},
         )
         assert res.status_code == 200
@@ -149,6 +149,7 @@ class TestAllocateAuthentication:
             json={
                 "total_bandwidth": 40.0,
                 "use_live_users": True,
+                "user_requests": {"alloc_user": 5.0},
                 "users": [
                     {
                         "user_id": "fake_attacker",
@@ -179,6 +180,7 @@ class TestAllocateAuthentication:
             json={
                 "total_bandwidth": 40.0,
                 "use_live_users": True,
+                "user_requests": {"alloc_user": 5.0},
                 "users": fake_users,
             },
             headers={"Authorization": f"Bearer {sid}"},
@@ -196,6 +198,7 @@ class TestAllocateAuthentication:
             json={
                 "total_bandwidth": 40.0,
                 "use_live_users": True,
+                "user_requests": {"alloc_user": 5.0},
                 "users": [
                     {
                         "user_id": "alloc_user",
@@ -210,8 +213,139 @@ class TestAllocateAuthentication:
         body = res.get_json()
         user_result = next(u for u in body["result"]["users"] if u["user_id"] == "alloc_user")
         assert user_result["activity"] == "browsing"
+        assert user_result["requested_bandwidth"] == 5.0
         assert user_result["requested_bandwidth"] != 999
-        assert user_result["requested_bandwidth"] > 0
+
+
+class TestLiveUserRequestValidation:
+    def test_positive_int_accepted(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": 5}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 200
+
+    def test_positive_float_accepted(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": 5.5}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 200
+
+    def test_large_positive_accepted(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": 1000.0}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 200
+
+    def test_zero_rejected(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": 0.0}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+
+    def test_negative_rejected(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": -1.0}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+
+    def test_non_numeric_string_rejected(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": "abc"}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+
+    def test_null_rejected(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": None}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+
+    def test_nan_rejected(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": float("nan")}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+
+    def test_positive_infinity_rejected(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": float("inf")}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+
+    def test_negative_infinity_rejected(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {"alloc_user": float("-inf")}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+
+    def test_missing_user_request_skips_user(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={"total_bandwidth": 40.0, "use_live_users": True, "user_requests": {}},
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 400
+        body = res.get_json()
+        assert "No active live users with a bandwidth request" in body["message"]
+
+    def test_valid_asymmetric_requests_reach_engine(self, flask_client, fresh_account):
+        adb = fresh_account
+        sid = _active_session(adb)
+        res = flask_client.post(
+            "/api/allocate",
+            json={
+                "total_bandwidth": 40.0,
+                "use_live_users": True,
+                "user_requests": {"alloc_user": 5.0, "other_user": 15.0},
+            },
+            headers={"Authorization": f"Bearer {sid}"},
+        )
+        assert res.status_code == 200
+        body = res.get_json()
+        assert body["result"]["total_allocated_bandwidth"] <= 40.0 + 1e-6
+        assert body["result"]["is_nash_equilibrium"] is True
 
 
 class TestAllocateValidation:

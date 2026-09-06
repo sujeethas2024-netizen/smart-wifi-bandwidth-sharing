@@ -1,11 +1,12 @@
 from flask import Blueprint, request, jsonify
+import math
 import pandas as pd
 import os
 
 from backend.services.allocation_service import allocate_bandwidth
 from backend.services.live_allocation_service import build_live_allocation_request
 from backend.simulation.experiment_runner import run_experiment_json, get_experiment_config
-from backend.data_provenance import SIMULATION, CALCULATED_FROM_REAL_DATA
+from backend.data_provenance import SIMULATION, CALCULATED_FROM_REAL_DATA, REAL_USER_INPUT, RESEARCH_SIMULATION
 from backend.experiments.config_schema import ExperimentConfig
 from backend.experiments.runner import run_multi_seed_experiment
 from backend.experiments.ablation import run_ablation
@@ -93,15 +94,44 @@ def allocate():
         # If the caller asks for a LIVE allocation, derive the user list
         # from the server-authoritative active-session table so the
         # backend never trusts a client-supplied user population.
+        # Real bandwidth requests must come from the client via
+        # ``user_requests``; users without a real request are excluded.
         use_live_users = bool(data.get("use_live_users"))
+        user_requests = data.get("user_requests") or {}
+
+        if use_live_users and user_requests:
+            for username, requested in user_requests.items():
+                try:
+                    value = float(requested)
+                except (TypeError, ValueError):
+                    return jsonify({
+                        "status": "error",
+                        "message": (
+                            f"Invalid requested_bandwidth for user '{username}': "
+                            "value must be a positive finite number."
+                        ),
+                    }), 400
+                if value <= 0 or not math.isfinite(value):
+                    return jsonify({
+                        "status": "error",
+                        "message": (
+                            f"Invalid requested_bandwidth for user '{username}': "
+                            "value must be a positive finite number."
+                        ),
+                    }), 400
+
         if use_live_users:
             live_users, live_meta = build_live_allocation_request(
                 total_bandwidth=float(data.get("total_bandwidth", 40.0)),
+                user_requests=user_requests,
             )
             if not live_users:
                 return jsonify({
                     "status": "error",
-                    "message": "No active live users to allocate to.",
+                    "message": (
+                        "No active live users with a bandwidth request. "
+                        "Each active user must provide a requested_bandwidth."
+                    ),
                     "source": "live_sessions",
                 }), 400
             data = dict(data)
@@ -335,6 +365,15 @@ def allocate():
         return jsonify({
 
             "status": "success",
+
+            "source": CALCULATED_FROM_REAL_DATA,
+
+            "provenance": {
+                "user_demand": REAL_USER_INPUT,
+                "allocation": CALCULATED_FROM_REAL_DATA,
+                "metrics": CALCULATED_FROM_REAL_DATA,
+                "fairness": CALCULATED_FROM_REAL_DATA,
+            },
 
             "total_bandwidth":
                 total_bandwidth,
@@ -644,5 +683,57 @@ def get_experiment_report():
         return jsonify({
             "status": "error",
             "message": "Report generation failed",
+            "error": str(e),
+        }), 500
+
+
+# ============================================================
+# RESEARCH RESULTS API — serves existing processed dataset
+# ============================================================
+
+@bandwidth_bp.route("/experiment/results", methods=["GET"])
+def get_experiment_results():
+    try:
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        agg_path = os.path.join(base_dir, "data", "aggregated_results.csv")
+        raw_path = os.path.join(base_dir, "data", "raw_results.csv")
+
+        result = {
+            "status": "success",
+            "source": RESEARCH_SIMULATION,
+            "provenance": {
+                "user_demand": SIMULATION,
+                "allocation": CALCULATED_FROM_REAL_DATA,
+                "metrics": CALCULATED_FROM_REAL_DATA,
+                "fairness": CALCULATED_FROM_REAL_DATA,
+                "note": (
+                    "Controlled research dataset. "
+                    "Raw results: data/raw_results.csv. "
+                    "Aggregated results: data/aggregated_results.csv."
+                ),
+            },
+        }
+
+        if os.path.exists(agg_path):
+            df = pd.read_csv(agg_path)
+            result["aggregated"] = df.to_dict(orient="records")
+            result["aggregated_count"] = len(df)
+        else:
+            result["aggregated"] = []
+            result["aggregated_count"] = 0
+
+        if os.path.exists(raw_path):
+            df = pd.read_csv(raw_path)
+            result["raw"] = df.to_dict(orient="records")
+            result["raw_count"] = len(df)
+        else:
+            result["raw"] = []
+            result["raw_count"] = 0
+
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({
+            "status": "error",
+            "message": "Failed to load research results",
             "error": str(e),
         }), 500

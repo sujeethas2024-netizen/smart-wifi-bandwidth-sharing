@@ -74,10 +74,10 @@ export default function AIRecommendations({ users = [] }) {
     <div className="ai-panel glass">
       <div className="ai-head">
         <h3 className="section-title" style={{ marginBottom: 0 }}>
-          <span className="dot" /> AI Recommendations
+          <span className="dot" /> Recommendations
         </h3>
         <span className="ai-chip">
-          <FiCpu /> Game Theory Engine
+          <FiCpu /> Rule-Based
         </span>
       </div>
 
@@ -105,7 +105,7 @@ export default function AIRecommendations({ users = [] }) {
 
       <div className="ai-footer">
         <span className="pulse-dot" style={{ background: "#22c55e" }} />
-        Model retrained 12 min ago · Confidence 96%
+        Deterministic rules · No ML model
       </div>
     </div>
   );

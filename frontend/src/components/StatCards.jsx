@@ -21,7 +21,7 @@ const CARDS = [
   },
   {
     key: "bandwidth",
-    label: "Throughput",
+    label: "Bandwidth Capacity",
     icon: <FiZap />,
     color: "#14b8a6",
     suffix: " Mbps",
@@ -48,6 +48,9 @@ export default function StatCards({ stats }) {
     bandwidth: stats.bandwidth,
     health: stats.health,
   };
+  const labels = {
+    bandwidth: stats.bandwidthLabel || CARDS[2].label,
+  };
 
   return (
     <div className="stat-grid">
@@ -55,8 +58,9 @@ export default function StatCards({ stats }) {
         const unavailable = isUnavailable(
           stats._meta,
           c.key,
-          stats.bandwidthUnavailable
+          c.key === "bandwidth" ? stats.bandwidthUnavailable : undefined
         );
+        const label = labels[c.key] || c.label;
         return (
           <motion.div
             key={c.key}
@@ -77,7 +81,7 @@ export default function StatCards({ stats }) {
               {c.icon}
             </div>
             <div className="stat-info">
-              <span className="stat-label">{c.label}</span>
+              <span className="stat-label">{label}</span>
               <span className="stat-value" style={{ color: c.color }}>
                 {unavailable ? (
                   <span className="stat-na">N/A</span>

@@ -37,10 +37,15 @@ from backend.data_provenance import (
     REAL_RUNTIME_MEASUREMENT,
 )
 from backend.services.network_measurement_service import get_network_measurement_service
+from backend.config import Config
 
 network_bp = Blueprint("network", __name__)
 
-LIVE_MODE = os.environ.get("LIVE_NETWORK_MODE", "").lower() in ("1", "true", "yes")
+# Source of truth for the live runtime measurement switch. The
+# LIVE_NETWORK_MODE environment variable (loaded via backend.config)
+# controls whether /api/network/stats returns real runtime measurements
+# or the deterministic research simulation.
+LIVE_MODE = bool(getattr(Config, "LIVE_NETWORK_MODE", False))
 
 # In-memory deterministic state used ONLY when LIVE_NETWORK_MODE is
 # disabled. Research experiments rely on a reproducible simulation.
@@ -220,7 +225,9 @@ def _live_stats():
     health, health_label = health_score(latency, packet_loss, throughput)
 
     meta: Dict[str, Any] = {}
-    for key, data in measurement.items():
+    canonical_keys = ("bandwidth", "latency", "packet_loss", "throughput", "jitter")
+    for key in canonical_keys:
+        data = measurement.get(key, {})
         meta[f"{key}_source"] = data.get("classification", UNAVAILABLE)
         meta[f"{key}_note"] = data.get("note", "")
         meta[f"{key}_age_seconds"] = data.get("age_seconds")

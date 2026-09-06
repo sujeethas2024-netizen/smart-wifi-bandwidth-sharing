@@ -244,6 +244,25 @@
   gap: 9px;
   align-self: flex-start;
 }
+.alloc-request {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.alloc-request label {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+.alloc-request input {
+  width: 100%;
+  max-width: 220px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--text);
+  font-size: 0.9rem;
+}
 .alloc-meta {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -681,8 +700,42 @@
   text-transform: uppercase;
   border-radius: 999px;
   padding: 3px 9px;
-  border: 1px solid;
+  border: 1px;
   white-space: nowrap;
+}
+
+/* ---------------- Mode Switcher ---------------- */
+.mode-switcher {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.35);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+.mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 7px 14px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  white-space: nowrap;
+}
+.mode-btn.active {
+  background: var(--grad-btn);
+  color: #fff;
+  box-shadow: 0 4px 14px var(--glow-primary);
+}
+.mode-btn:not(.active):hover {
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.08);
 }
 
 /* ---------------- Experiment Config ---------------- */

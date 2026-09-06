@@ -76,13 +76,13 @@ class TestBuildLiveAllocationRequest:
         adb = clean_accounts
         _register(adb, "user_one", "Online Gaming")
         _session_for(adb, "user_one")
-        users, meta = build_live_allocation_request()
+        users, meta = build_live_allocation_request(user_requests={"user_one": 5.0})
         assert meta["unique_user_count"] == 1
         assert len(users) == 1
         u = users[0]
         assert u["user_id"] == "user_one"
         assert u["activity"] == "gaming"
-        assert u["requested_bandwidth"] > 0
+        assert u["requested_bandwidth"] == 5.0
 
     def test_activity_canonical(self, clean_accounts):
         adb = clean_accounts
@@ -92,7 +92,11 @@ class TestBuildLiveAllocationRequest:
         _register(adb, "carol", "General Browsing")
         for n in ("alice", "bob1", "carol"):
             _session_for(adb, n)
-        users, _ = build_live_allocation_request()
+        users, _ = build_live_allocation_request(user_requests={
+            "alice": 6.0,
+            "bob1": 8.0,
+            "carol": 4.0,
+        })
         activities = {u["user_id"]: u["activity"] for u in users}
         assert activities["alice"] == "online_class"
         assert activities["bob1"] == "streaming"
@@ -105,42 +109,60 @@ class TestBuildLiveAllocationRequest:
         _register(adb, "dup_user")
         _session_for(adb, "dup_user")
         _session_for(adb, "dup_user")
-        users, meta = build_live_allocation_request()
+        users, meta = build_live_allocation_request(user_requests={"dup_user": 5.0})
         assert meta["unique_user_count"] == 1
         assert len(users) == 1
 
     @pytest.mark.parametrize("count", [1, 10, 70, 100, 200, 373])
     def test_dynamic_user_counts(self, clean_accounts, count):
         adb = clean_accounts
+        user_requests = {}
         for i in range(count):
-            _register(adb, f"dyn_user_{i}", "General Browsing")
-            _session_for(adb, f"dyn_user_{i}")
-        users, meta = build_live_allocation_request()
+            uname = f"dyn_user_{i}"
+            _register(adb, uname, "General Browsing")
+            _session_for(adb, uname)
+            user_requests[uname] = 5.0
+        users, meta = build_live_allocation_request(user_requests=user_requests)
         assert meta["unique_user_count"] == count
         assert len(users) == count
-        assert all(u["requested_bandwidth"] > 0 for u in users)
+        assert all(u["requested_bandwidth"] == 5.0 for u in users)
 
     def test_requested_bandwidth_contract(self, clean_accounts):
         adb = clean_accounts
+        user_requests = {}
         for i in range(50):
-            _register(adb, f"uniq_{i}", "General Browsing")
-            _session_for(adb, f"uniq_{i}")
-        users1, _ = build_live_allocation_request()
+            uname = f"uniq_{i}"
+            _register(adb, uname, "General Browsing")
+            _session_for(adb, uname)
+            user_requests[uname] = 5.0
+        users1, _ = build_live_allocation_request(user_requests=user_requests)
         assert len(users1) == 50
         for u in users1:
-            assert u["requested_bandwidth"] > 0
-            assert 1.0 <= u["requested_bandwidth"] <= 25.0
+            assert u["requested_bandwidth"] == 5.0
 
         # Determinism: a second call with the same live-session population
         # must produce the identical per-user requested_bandwidth values.
-        users2, _ = build_live_allocation_request()
+        users2, _ = build_live_allocation_request(user_requests=user_requests)
         vals1 = {u["user_id"]: u["requested_bandwidth"] for u in users1}
         vals2 = {u["user_id"]: u["requested_bandwidth"] for u in users2}
         assert vals1 == vals2
+
+    def test_users_without_request_are_skipped(self, clean_accounts):
+        adb = clean_accounts
+        _register(adb, "alice")
+        _session_for(adb, "alice")
+        _register(adb, "bob123")
+        _session_for(adb, "bob123")
+        users, meta = build_live_allocation_request(user_requests={"alice": 7.5})
+        assert len(users) == 1
+        assert users[0]["user_id"] == "alice"
+        assert users[0]["requested_bandwidth"] == 7.5
+        assert meta["active_session_count"] == 2
+        assert meta["unique_user_count"] == 1
 
     def test_total_bandwidth_propagated(self, clean_accounts):
         adb = clean_accounts
         _register(adb, "t_user")
         _session_for(adb, "t_user")
-        _, meta = build_live_allocation_request(total_bandwidth=125.0)
+        _, meta = build_live_allocation_request(total_bandwidth=125.0, user_requests={"t_user": 3.0})
         assert meta["total_bandwidth"] == 125.0

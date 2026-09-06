@@ -70,13 +70,15 @@ def admin_session(flask_client):
 def test_dynamic_n_users_allocation(flask_client, admin_session, count):
     from backend.database import accounts_db as adb
     # Populate the live_sessions table with `count` distinct users.
+    user_requests = {"admin": 5.0}
     for i in range(count):
         uname = f"pop_{i}"
         _register(adb, uname)
         _session(adb, uname)
+        user_requests[uname] = 5.0
     res = flask_client.post(
         "/api/allocate",
-        json={"total_bandwidth": 200.0, "use_live_users": True},
+        json={"total_bandwidth": 200.0, "use_live_users": True, "user_requests": user_requests},
         headers={"Authorization": f"Bearer {admin_session}"},
     )
     assert res.status_code == 200, res.get_data(as_text=True)
@@ -102,10 +104,14 @@ def test_logout_removes_user_from_population(flask_client, admin_session):
         _register(adb, uname)
         _session(adb, uname)
 
+    user_requests = {"admin": 5.0}
+    for i in range(5):
+        user_requests[f"leaver_{i}"] = 5.0
+
     # First allocation: 5 + admin = 6 users.
     res = flask_client.post(
         "/api/allocate",
-        json={"total_bandwidth": 100.0, "use_live_users": True},
+        json={"total_bandwidth": 100.0, "use_live_users": True, "user_requests": user_requests},
         headers={"Authorization": f"Bearer {admin_session}"},
     )
     assert res.status_code == 200
@@ -117,9 +123,11 @@ def test_logout_removes_user_from_population(flask_client, admin_session):
     target = next(s for s in sessions if s["username"] == "leaver_0")
     adb.revoke_live_session(target["session_id"])
 
+    del user_requests["leaver_0"]
+
     res = flask_client.post(
         "/api/allocate",
-        json={"total_bandwidth": 100.0, "use_live_users": True},
+        json={"total_bandwidth": 100.0, "use_live_users": True, "user_requests": user_requests},
         headers={"Authorization": f"Bearer {admin_session}"},
     )
     assert res.status_code == 200

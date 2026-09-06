@@ -19,6 +19,7 @@ from typing import Any, Dict, List, Optional, Tuple
 # Look up these at call time so tests can monkey-patch them onto the
 # module to point at an isolated database.
 from backend import database
+from backend.data_provenance import REAL_USER_INPUT
 from backend.services.activity_mapping import normalise_activity
 
 
@@ -52,8 +53,13 @@ def _usage_bandwidth_for(username: str, seed_base: float) -> float:
 def build_live_allocation_request(
     timeout_seconds: Optional[int] = None,
     total_bandwidth: float = 40.0,
+    user_requests: Optional[Dict[str, float]] = None,
 ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """Build an allocation request from the live session table.
+
+    Only active users who have provided a genuine bandwidth request
+    are included. Users without a real request are skipped; the
+    caller must not fabricate demand.
 
     Returns
     -------
@@ -62,6 +68,7 @@ def build_live_allocation_request(
         meta   — provenance/observability info
     """
     sessions = _list_active_sessions(timeout_seconds or _timeout_seconds())
+    real_requests = user_requests or {}
 
     users: List[Dict[str, Any]] = []
     seen = set()
@@ -70,12 +77,14 @@ def build_live_allocation_request(
         if not username or username in seen:
             continue
         seen.add(username)
+
+        if username not in real_requests:
+            continue
+
+        requested = float(real_requests[username])
         account = _get_account(username) or {}
         reason = account.get("usage_reason") or "General Browsing"
         activity = normalise_activity(reason)
-        # Deterministic per-user requested bandwidth so allocations are
-        # reproducible for the same active population.
-        requested = _usage_bandwidth_for(username, float(sess.get("last_seen", "")[-6:] or 0))
         users.append({
             "user_id": username,
             "activity": activity,
@@ -87,5 +96,6 @@ def build_live_allocation_request(
         "unique_user_count": len(users),
         "timeout_seconds": timeout_seconds or _timeout_seconds(),
         "total_bandwidth": total_bandwidth,
+        "user_demand_source": REAL_USER_INPUT,
     }
     return users, meta

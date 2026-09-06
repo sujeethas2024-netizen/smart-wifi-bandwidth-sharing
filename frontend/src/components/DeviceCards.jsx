@@ -69,6 +69,10 @@ export default function DeviceCards({ users }) {
                 📶 {u.signal.charAt(0).toUpperCase() + u.signal.slice(1)}
               </span>
             </div>
+
+            <p className="text-dim" style={{ fontSize: 10, marginTop: 6 }}>
+              Simulated profile · router/AP telemetry unavailable
+            </p>
           </motion.div>
         );
       })}

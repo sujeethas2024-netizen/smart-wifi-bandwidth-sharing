@@ -39,6 +39,7 @@ import os
 import platform
 import re
 import socket
+import struct
 import subprocess
 import threading
 import time
@@ -215,65 +216,55 @@ class HostInterfaceAdapter(MeasurementAdapter):
             import ctypes
             from ctypes import wintypes
 
-            class MIB_IFROW(ctypes.Structure):
-                _fields_ = [
-                    ("dwIndex", wintypes.DWORD),
-                    ("dwType", wintypes.DWORD),
-                    ("dwMtu", wintypes.DWORD),
-                    ("dwSpeed", wintypes.DWORD),
-                    ("dwPhysAddrLen", wintypes.DWORD),
-                    ("bPhysAddr", wintypes.BYTE * 8),
-                    ("dwAdminStatus", wintypes.DWORD),
-                    ("dwOperStatus", wintypes.DWORD),
-                    ("dwLastChange", wintypes.DWORD),
-                    ("dwInOctets", wintypes.DWORD),
-                    ("dwInUcastPkts", wintypes.DWORD),
-                    ("dwInNUcastPkts", wintypes.DWORD),
-                    ("dwInDiscards", wintypes.DWORD),
-                    ("dwInErrors", wintypes.DWORD),
-                    ("dwInUnknownProtos", wintypes.DWORD),
-                    ("dwInQLen", wintypes.DWORD),
-                    ("dwOutOctets", wintypes.DWORD),
-                    ("dwOutUcastPkts", wintypes.DWORD),
-                    ("dwOutNUcastPkts", wintypes.DWORD),
-                    ("dwOutDiscards", wintypes.DWORD),
-                    ("dwOutErrors", wintypes.DWORD),
-                    ("dwOutQLen", wintypes.DWORD),
-                    ("dwDescrLen", wintypes.DWORD),
-                    ("bDescr", wintypes.BYTE * 256),
-                ]
-
-            class MIB_IFTABLE(ctypes.Structure):
-                _fields_ = [("dwNumEntries", wintypes.DWORD)]
-
             iphlpapi = ctypes.windll.iphlpapi
             size = wintypes.DWORD(0)
             res = iphlpapi.GetIfTable(None, ctypes.byref(size), False)
             if res != 122:
                 return None
-            buf = ctypes.create_string_buffer(size.value)
+            buf = (ctypes.c_byte * size.value)()
             res = iphlpapi.GetIfTable(buf, ctypes.byref(size), False)
             if res != 0:
                 return None
-            table = ctypes.cast(buf, ctypes.POINTER(MIB_IFTABLE)).contents
+
+            raw = bytes(buf)
+            if len(raw) < 4:
+                return None
+            (num_entries,) = struct.unpack_from("<I", raw, 0)
+
+            # MIB_IFROW layout: 23 DWORDs (dwIndex ... dwDescrLen) followed
+            # by dwDescrLen bytes of UTF-16LE description.
             counters: Dict[str, Dict[str, int]] = {}
-            entry_size = ctypes.sizeof(MIB_IFROW)
-            base_addr = ctypes.addressof(buf) + ctypes.sizeof(MIB_IFTABLE)
-            for i in range(table.dwNumEntries):
-                row = ctypes.cast(
-                    base_addr + i * entry_size, ctypes.POINTER(MIB_IFROW)
-                ).contents
-                descr_bytes = bytes(row.bDescr[: row.dwDescrLen])
+            offset = 4
+            fixed_size = 4 * 23
+            for _ in range(num_entries):
+                if offset + fixed_size > len(raw):
+                    break
+                dw_index = struct.unpack_from("<I", raw, offset)[0]
+                dw_in_octets = struct.unpack_from("<I", raw, offset + 4 * 9)[0]
+                dw_out_octets = struct.unpack_from("<I", raw, offset + 4 * 16)[0]
+                dw_descr_len = struct.unpack_from("<I", raw, offset + 4 * 22)[0]
+                descr_start = offset + fixed_size
+                descr_end = descr_start + dw_descr_len
+                descr_bytes = (
+                    raw[descr_start:descr_end]
+                    if descr_end <= len(raw)
+                    else b""
+                )
                 try:
-                    descr = descr_bytes.decode("utf-16-le", errors="replace").strip("\x00")
+                    descr = (
+                        descr_bytes.decode("utf-16-le", errors="replace")
+                        .strip("\x00")
+                        .strip()
+                    )
                 except Exception:
-                    descr = descr_bytes.decode("utf-8", errors="replace").strip("\x00")
+                    descr = ""
                 if not descr:
-                    descr = f"Interface_{row.dwIndex}"
+                    descr = f"Interface_{dw_index}"
                 counters[descr] = {
-                    "bytes_in": int(row.dwInOctets),
-                    "bytes_out": int(row.dwOutOctets),
+                    "bytes_in": int(dw_in_octets),
+                    "bytes_out": int(dw_out_octets),
                 }
+                offset = descr_end
             return counters or None
         except Exception:
             return None
@@ -559,6 +550,12 @@ class NetworkMeasurementService:
 
         try:
             metrics.update(self._latency.measure())
+            latency_metric = metrics.get("latency")
+            if isinstance(latency_metric, Metric) and latency_metric.value is not None:
+                try:
+                    metrics.update(self._latency.measure())
+                except Exception:
+                    pass
             metrics["jitter"] = self._latency.jitter()
         except Exception as exc:
             self._last_error = f"latency: {exc}"
@@ -603,7 +600,7 @@ class NetworkMeasurementService:
         result: Dict[str, Any] = {}
         for key, metric in metrics.items():
             age = (
-                (now - metric.measured_at)
+                max(0.0, now - metric.measured_at)
                 if metric.measured_at is not None
                 else None
             )
