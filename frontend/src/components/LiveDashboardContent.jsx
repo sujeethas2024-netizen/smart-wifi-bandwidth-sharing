@@ -11,7 +11,7 @@ import AllocationAnimation from "../components/AllocationAnimation";
 import ActiveUsersList from "../components/ActiveUsersList";
 import { BandwidthLine, ConsumptionBar, CategoryDoughnut } from "../components/Charts";
 import { useLiveUsers } from "../hooks/useLiveUsers";
-import { useNetworkStats } from "../hooks/useNetworkStats";
+import { EMPTY_NETWORK_STATS, useNetworkStats } from "../hooks/useNetworkStats";
 import { fetchActiveUsers, getCurrentUser } from "../services/authService";
 import { allocationApi } from "../services/api";
 import DataSourceLabel from "../components/DataSourceLabel";
@@ -20,7 +20,8 @@ import "../styles/pages.css";
 
 export default function LiveDashboardContent() {
   const { users } = useLiveUsers();
-  const { stats, history, live } = useNetworkStats();
+  const { stats: responseStats, history, live } = useNetworkStats();
+  const stats = responseStats || EMPTY_NETWORK_STATS;
   const [allocating, setAllocating] = useState(false);
   const [loading, setLoading] = useState(true);
   const [activeUsers, setActiveUsers] = useState([]);

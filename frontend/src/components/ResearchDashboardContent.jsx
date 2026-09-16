@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { FiDownload } from "react-icons/fi";
-import StatCards from "../components/StatCards";
+import StatCards, { EMPTY_STATS } from "../components/StatCards";
 import UserTable from "../components/UserTable";
 import HealthGauge from "../components/HealthGauge";
 import AIRecommendations from "../components/AIRecommendations";

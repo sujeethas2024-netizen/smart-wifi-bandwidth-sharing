@@ -41,25 +41,49 @@ function isUnavailable(meta, key, override) {
   return meta && meta[`${key}_source`] === UNAVAILABLE;
 }
 
-export default function StatCards({ stats }) {
+export const EMPTY_STATS = Object.freeze({
+  connectedUsers: null,
+  totalUsers: null,
+  activeDevices: null,
+  bandwidth: null,
+  bandwidthSource: UNAVAILABLE,
+  bandwidthUnavailable: true,
+  bandwidthLabel: "Bandwidth Capacity",
+  health: null,
+  healthLabel: "N/A",
+  _meta: Object.freeze({
+    bandwidth_source: UNAVAILABLE,
+    latency_source: UNAVAILABLE,
+    packetLoss_source: UNAVAILABLE,
+    throughput_source: UNAVAILABLE,
+    jitter_source: UNAVAILABLE,
+    health_source: UNAVAILABLE,
+  }),
+});
+
+export default function StatCards({ stats = EMPTY_STATS }) {
+  const safeStats = stats || EMPTY_STATS;
   const values = {
-    users: stats.connectedUsers,
-    devices: stats.activeDevices,
-    bandwidth: stats.bandwidth,
-    health: stats.health,
+    users: safeStats.connectedUsers,
+    devices: safeStats.activeDevices,
+    bandwidth: safeStats.bandwidth,
+    health: safeStats.health,
   };
   const labels = {
-    bandwidth: stats.bandwidthLabel || CARDS[2].label,
+    bandwidth: safeStats.bandwidthLabel || CARDS[2].label,
   };
 
   return (
     <div className="stat-grid">
       {CARDS.map((c, i) => {
-        const unavailable = isUnavailable(
-          stats._meta,
-          c.key,
-          c.key === "bandwidth" ? stats.bandwidthUnavailable : undefined
-        );
+        const unavailable =
+          values[c.key] === null ||
+          values[c.key] === undefined ||
+          isUnavailable(
+            safeStats._meta,
+            c.key,
+            c.key === "bandwidth" ? safeStats.bandwidthUnavailable : undefined
+          );
         const label = labels[c.key] || c.label;
         return (
           <motion.div
